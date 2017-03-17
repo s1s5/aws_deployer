@@ -8,8 +8,8 @@ import getpass
 from fabric.decorators import task
 from fabric.state import env
 from fabric.api import run, sudo, local, put, warn_only  # prompt
-from fabric.utils import indent
-from fabric.context_managers import hide, shell_env
+from fabric.utils import puts
+from fabric.context_managers import shell_env
 
 env.forward_agent = True
 env.use_ssh_config = True
@@ -27,9 +27,9 @@ def setup_aws_ec2(username, id_rsa_pub=None):
     if res.return_code:
         sudo('groupadd dev')
     user_add(username, id_rsa_pub)
-    with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
+    with shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
-        sudo('apt upgrade')
+        sudo('apt upgrade -y')
         sudo('apt install python2.7 -y', pty=False)
 
 
@@ -59,13 +59,13 @@ def user_add(username, id_rsa_pub, sudoer=True):
             sudo('chmod 700 /home/{}/.ssh'.format(username))
             sudo('chmod 600 /home/{}/.ssh/authorized_keys'.format(username))
             sudo('chown -R {username}:dev /home/{username}'.format(username=username))
-            indent('#### add following lines to ~/.ssh/config ####', spaces=0)
-            indent('host <host alias>', spaces=0)
-            indent('User {}'.format(username))
-            indent('Hostname {}'.format(env['host_string'].split('@')[-1]))
-            indent('Port 22')
-            indent('IdentityFile {}'.format(id_rsa))
-            indent('IdentitiesOnly yes')
+            puts('#### add following lines to ~/.ssh/config ####')
+            puts('host <host alias>')
+            puts('    User {}'.format(username))
+            puts('    Hostname {}'.format(env['host_string'].split('@')[-1]))
+            puts('    Port 22')
+            puts('    IdentityFile {}'.format(id_rsa))
+            puts('    IdentitiesOnly yes')
         except:
             sudo('deluser {}'.format(username))
             raise
@@ -78,4 +78,7 @@ def user_del(username):
 
 @task
 def setup_nat_instance():
-    pass
+    sudo('sysctl -w net.ipv4.ip_forward=1')
+    sudo('sysctl -p')
+    sudo('/sbin/iptables -t nat -A POSTROUTING -o eth0 -s 0.0.0.0/0 -j MASQUERADE')
+    sudo('netfilter-persistent save')

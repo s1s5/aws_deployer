@@ -11,10 +11,11 @@ AWSのインスタンスを初期化する。
 5. ubuntuユーザーの削除
 
 ### 実行後
-#### ~/.ssh/configに以下を追加
+#### ログででてきたものを~/.ssh/configに以下を追加
+以下参考
 ```
 host <host alias>
-     User sawai
+     User username
      Hostname 52.87.169.26
      Port 22
      IdentityFile ~/.ssh/ubuntu_52.87.169.26_id_rsa
