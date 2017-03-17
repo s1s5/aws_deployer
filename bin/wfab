@@ -1,0 +1,6 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
+
+docker run -t -i --rm -v /home/`id -un`:/home/`id -un` -e USER_NAME=`id -un` -e USER_ID=`id -u` -e GROUP_ID=`id -g` deployer /opt/docker_startup.sh "cd `pwd`; fab -f /app/fabfile.py $*"

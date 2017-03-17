@@ -1,6 +1,8 @@
 # deployer
 ## test login
+```
 - fab -i ~/.ssh/lifecard_akb.pem  -H ubuntu@52.87.169.26 ping
+```
 
 ## set AWS EC2
 AWSのインスタンスを初期化する。
@@ -32,4 +34,16 @@ $ ssh-add ~/.ssh/ubuntu_52.87.169.26_id_rsa # <= 作成されたid_rsa
 
 
 ### 最後にデフォルトで作成されるubuntuを削除する
+```
 $ fab -H <host alias> user_del:ubuntu
+```
+
+
+# docker
+``` shell
+$ docker build . -f Dockerfile  -t deployer
+$ docker run -t -i --rm -v /home/`id -un`:/home/`id -un` -e USER_NAME=`id -un` -e USER_ID=`id -u` -e GROUP_ID=`id -g` deployer /opt/docker_startup.sh "cd `pwd`; touch hoge"
+$ docker run -t -i --rm -v /home/`id -un`:/home/`id -un` -e USER_NAME=`id -un` -e USER_ID=`id -u` -e GROUP_ID=`id -g` deployer /opt/docker_startup.sh "cd `pwd`; fab -f /app/fabfile.py -H lcakb_gateway -l"
+
+$ ./bin/wfab -H lcakb_gateway -l
+```
