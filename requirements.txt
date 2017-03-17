@@ -1,0 +1,18 @@
+-e git+https://github.com/s1s5/fabmisc.git@c3229d4e5e942c26c792f45672597ad353aeb597#egg=fabmisc
+Fabric==1.13.1
+Jinja2==2.9.5
+MarkupSafe==1.0
+appdirs==1.4.3
+asn1crypto==0.22.0
+cffi==1.9.1
+cryptography==1.8.1
+enum34==1.1.6
+fabtools==0.20.0
+idna==2.5
+ipaddress==1.0.18
+packaging==16.8
+paramiko==2.1.2
+pyasn1==0.2.3
+pycparser==2.17
+pyparsing==2.2.0
+six==1.10.0
