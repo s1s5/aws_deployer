@@ -17,11 +17,13 @@ env.use_ssh_config = True
 
 @task
 def ping():
+    """接続テスト"""
     run("echo `hostname` {}".format(env['host_string']))
 
 
 @task
 def setup_aws_ec2(username, id_rsa_pub=None):
+    """setup_aws_ec2:<username>でユーザー作成＋devグループの作成、id_rsa.pubの作成を行う。"""
     with warn_only():
         res = sudo("grep -c '^dev:' /etc/group")
     if res.return_code:
@@ -35,6 +37,7 @@ def setup_aws_ec2(username, id_rsa_pub=None):
 
 @task
 def user_add(username, id_rsa_pub, sudoer=True):
+    """user_add:<username>,<id_rsa_pub>でユーザーの作成を行う"""
     with warn_only():
         res = sudo("grep -c '^{}:' /etc/passwd".format(username))
     if res.return_code:
@@ -73,12 +76,15 @@ def user_add(username, id_rsa_pub, sudoer=True):
 
 @task
 def user_del(username):
+    """user_del:<username> ユーザーの削除"""
     sudo('userdel {}'.format(username))
 
 
 @task
 def setup_nat_instance():
+    """AWSのnat instanceの設定をする"""
     sudo('sysctl -w net.ipv4.ip_forward=1')
     sudo('sysctl -p')
+    # TODO: あるかどうかチェックして追加しないと・・・
     sudo('/sbin/iptables -t nat -A POSTROUTING -o eth0 -s 0.0.0.0/0 -j MASQUERADE')
     sudo('netfilter-persistent save')
