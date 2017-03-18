@@ -2,6 +2,7 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import os
 import re
 import getpass
 
@@ -10,6 +11,8 @@ from fabric.state import env
 from fabric.api import run, sudo, local, put, warn_only  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
+
+from fabmisc import docker_tools
 
 env.forward_agent = True
 env.use_ssh_config = True
@@ -88,3 +91,20 @@ def setup_nat_instance():
     # TODO: あるかどうかチェックして追加しないと・・・
     sudo('/sbin/iptables -t nat -A POSTROUTING -o eth0 -s 0.0.0.0/0 -j MASQUERADE')
     sudo('netfilter-persistent save')
+
+
+@task
+def docker_run(image_name, *args, **kw):
+    with docker_tools.DockerProxy(
+            os.path.basename(os.getcwd()),
+            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
+        image = proxy.remote_client.images.get(image_name)
+        proxy.remote_client.containers.run(image, *args, **kw)
+
+
+@task
+def docker_push(image, tag):
+    with docker_tools.DockerProxy(
+            os.path.basename(os.getcwd()),
+            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
+        proxy.push(image, tag)
