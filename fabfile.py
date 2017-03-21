@@ -2,17 +2,16 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import os
 import re
 import getpass
 
 from fabric.decorators import task
 from fabric.state import env
-from fabric.api import run, sudo, local, put, warn_only  # prompt
+from fabric.api import run, sudo, local, put, hide, warn_only  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
 
-from fabmisc import docker_tools
+import docker_tools as docker  # NOQA
 
 env.forward_agent = True
 env.use_ssh_config = True
@@ -32,7 +31,7 @@ def setup_aws_ec2(username, id_rsa_pub=None):
     if res.return_code:
         sudo('groupadd dev')
     user_add(username, id_rsa_pub)
-    with shell_env(DEBIAN_FRONTEND='noninteractive'):
+    with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
         sudo('apt upgrade -y')
         sudo('apt install python2.7 -y', pty=False)
@@ -93,18 +92,3 @@ def setup_nat_instance():
     sudo('netfilter-persistent save')
 
 
-@task
-def docker_run(image_name, *args, **kw):
-    with docker_tools.DockerProxy(
-            os.path.basename(os.getcwd()),
-            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
-        image = proxy.remote_client.images.get(image_name)
-        proxy.remote_client.containers.run(image, *args, **kw)
-
-
-@task
-def docker_push(image, tag):
-    with docker_tools.DockerProxy(
-            os.path.basename(os.getcwd()),
-            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
-        proxy.push(image, tag)
