@@ -6,10 +6,10 @@ import uuid
 import random
 import subprocess
 import os
-import multiprocessing
+# import multiprocessing
 
 from fabric.state import env
-from fabric.api import local, get, put, run, sudo, remote_tunnel
+from fabric.api import local, get, put, run, sudo  # , remote_tunnel
 from fabric.decorators import task
 from fabric.contrib.console import confirm as fab_confirm
 from fabric.contrib.files import exists
@@ -135,7 +135,7 @@ class DockerTunnel(object):
             'crt': tmp_file,
         }
         sudo("true")
-        print env
+        # print env
 
         def _local_listen(**kw):
             local("socat unix-listen:{sock},fork,mode=600 "
@@ -154,36 +154,38 @@ class DockerTunnel(object):
         # self.plist.append(multiprocessing.Process(target=_remote_forward, kwargs=kw))
         # for i in self.plist:
         #     i.start()
-        self.tmp_file = tmp_file
         # import time
         # time.sleep(60)
         # self.tunnel = remote_tunnel(port)
         # self.tunnel.__enter__()
 
-        cmd0 = ["socat", "TCP-LISTEN:{},reuseaddr,fork".format(port),
+        cmd0 = ["socat", "TCP-LISTEN:{},forever,reuseaddr,fork".format(port),
                 "EXEC:'ssh {} socat STDIO \"TCP:127.0.0.1:{}\"'".format(self.hostname, port)]
         cmd1 = ["socat", "unix-listen:{sock},fork,mode=600".format(**kw),
                 "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
         cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
-                (["-S", ] if env['password'] else []) + 
-                [("socat openssl-listen:{port},fork,reuseaddr,cert={rpem},cafile={crt} "
+                (["-S", ] if env['password'] else []) +
+                [("socat openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
                   "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
 
-        print 'cmd0:', ' '.join(cmd0)
-        print 'cmd1:', ' '.join(cmd1)
-        print 'cmd2:', ' '.join(cmd2)
+        # print 'cmd0:', ' '.join(cmd0)
+        # print 'cmd1:', ' '.join(cmd1)
+        # print 'cmd2:', ' '.join(cmd2)
         # cmd1 = (["ssh", "-kTax", self.hostname, "sudo", ] +
         #         (["-S", ] if self.sudo_password else []) +
-        #         ["socat", "TCP-LISTEN:{},fork,reuseaddr".format(port), "UNIX-CONNECT\:/var/run/docker.sock"])
+        #      ["socat", "TCP-LISTEN:{},fork,reuseaddr".format(port), "UNIX-CONNECT\:/var/run/docker.sock"])
         # cmd0 = ["socat", "TCP-LISTEN:{},reuseaddr,fork".format(port),
         #         "EXEC:'ssh {} socat STDIO UNIX-CONNECT:{}'".format(self.hostname, sock_name)]
         # cmd1 = (["ssh", "-kTax", self.hostname, "sudo", ] +
         #         (["-S", ] if self.sudo_password else []) +
         # ["socat", "UNIX-LISTEN:{},fork,reuseaddr".format(sock_name), "UNIX-CONNECT\:/var/run/docker.sock"])
 
-        self.plist.append(subprocess.Popen(cmd0))
-        self.plist.append(subprocess.Popen(cmd1))
+        self.plist.append(subprocess.Popen(cmd0, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        self.plist.append(subprocess.Popen(cmd1, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
         p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # self.plist.append(subprocess.Popen(cmd0))
+        # self.plist.append(subprocess.Popen(cmd1))
+        # p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE)
         self.plist.append(p2)
         # self.plist.append(subprocess.Popen(cmd0))
         # p = subprocess.Popen(cmd1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -194,6 +196,7 @@ class DockerTunnel(object):
         # self.plist.append(p)
         # import time
         # time.sleep(10)
+        self.tmp_file = tmp_file
         self.sock = kw['sock']
         return self.sock
 
@@ -230,10 +233,10 @@ class DockerProxy(object):
     def __enter__(self):
         if self.reg is not None:
             raise Exception()
-        self.reg = DockerRegistry(self.project_name, self.registry_port)
+        self.reg = DockerRegistry(self.project_name, -1)
         self.dt = DockerTunnel(self.hostname)
-        self.st = ReverseTunnel(self.registry_port, self.registry_port)
-        self.reg.__enter__()
+        local_registry_port = self.reg.__enter__()
+        self.st = ReverseTunnel(local_registry_port, self.registry_port)
         self.dt_sock = self.dt.__enter__()
         self.st.__enter__()
 
@@ -278,7 +281,7 @@ class DockerProxy(object):
 
     def getRemoteClient(self):
         if self.__remote_client is None:
-            print 'socket -> ', self.sock
+            # print 'socket -> ', self.sock
             self.__remote_client = docker.from_env(environment=dict(DOCKER_HOST=self.sock))
         return self.__remote_client
 

@@ -51,6 +51,16 @@ def user_add(username, id_rsa_pub, sudoer=True):
             local('ssh-keygen -t rsa  -f ~/.ssh/{}id_rsa'.format(hoststring))
             id_rsa_pub = '~/.ssh/{}id_rsa.pub'.format(hoststring)
             id_rsa = '~/.ssh/{}id_rsa'.format(hoststring)
+            if os.path.exists(id_rsa_pub):
+                for i in range(100000):
+                    id_rsa_pub = '~/.ssh/{}id_rsa.{}.pub'.format(hoststring, i)
+                    if not os.path.exists(id_rsa_pub):
+                        break
+            if os.path.exists(id_rsa):
+                for i in range(100000):
+                    id_rsa = '~/.ssh/{}id_rsa.{}'.format(hoststring, i)
+                    if not os.path.exists(id_rsa):
+                        break
         else:
             id_rsa = '<set your id_rsa path for {}>'.format(id_rsa_pub)
 
@@ -74,6 +84,7 @@ def user_add(username, id_rsa_pub, sudoer=True):
             puts('    Port 22')
             puts('    IdentityFile {}'.format(id_rsa))
             puts('    IdentitiesOnly yes')
+            puts('#    ProxyCommand  ssh -W %h:%p <gateway>')
         except:
             sudo('deluser {}'.format(username))
             raise

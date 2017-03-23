@@ -1,7 +1,19 @@
 # deployer
+## create virtualenv
+
+``` shell
+mkvirtualenv --no-site-packages deployer -p /usr/bin/python2.7
+```
+
+## bin/をPATHに入れておく
+以下のコマンドが使えるように
+``` shell
+wfab -H localhost ping
+```
+
 ## test login
 ```
-- fab -i ~/.ssh/lifecard_akb.pem  -H ubuntu@52.87.169.26 ping
+fab -i ~/.ssh/lifecard_akb.pem  -H ubuntu@52.87.169.26 ping
 ```
 
 ## set AWS EC2
@@ -40,6 +52,7 @@ $ fab -H <host alias> user_del:ubuntu
 
 
 # docker
+使えない。。。
 ``` shell
 $ docker build . -f Dockerfile  -t deployer
 $ docker run -t -i --rm -v /home/`id -un`:/home/`id -un` -e USER_NAME=`id -un` -e USER_ID=`id -u` -e GROUP_ID=`id -g` deployer /opt/docker_startup.sh "cd `pwd`; touch hoge"

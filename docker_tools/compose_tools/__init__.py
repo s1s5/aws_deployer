@@ -9,12 +9,12 @@ from fabric.state import env
 from compose.cli import command
 from compose.service import BuildAction
 
-from .. import over_ssh
-
 
 @task
 def push(target_dir, *files, **kw):
     """push:<dir>,files.."""
+    from .. import over_ssh
+
     project = command.project_from_options(
         target_dir, {'--file': files})
     # print dir(project)
@@ -36,6 +36,8 @@ def push(target_dir, *files, **kw):
 @task
 def up(target_dir, *files, **kw):
     """up:<dir>,files.."""
+    from .. import over_ssh
+
     with over_ssh.DockerProxy(
             env['host_string'],
             os.path.basename(os.getcwd())) as proxy:

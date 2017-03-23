@@ -49,3 +49,12 @@ def push(image, tag):
             env['host_string'],
             os.path.basename(os.getcwd())) as proxy:
         proxy.push(image, tag)
+
+
+@task
+def execute(*functions):
+    with over_ssh.DockerProxy(
+            env['host_string'],
+            os.path.basename(os.getcwd())) as proxy:
+        for func in functions:
+            func(proxy)

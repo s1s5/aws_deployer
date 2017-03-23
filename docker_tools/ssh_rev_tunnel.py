@@ -37,8 +37,8 @@ class ReverseTunnel(object):
                 cmd += ['-i', env['key_filename'][0]]
             cmd += [i]
             p = subprocess.Popen(
-                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-            p.stdin.write("uptime")
+                cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            p.stdin.write("uptime\n")
             p.stdin.flush()
             p.stdout.readline()
             self.plist.append(p)
