@@ -3,6 +3,7 @@ ENV LANG ja_JP.UTF-8
 RUN apt-get update && \
     apt-get install -y python2.7 libffi-dev libssl-dev && \
     apt-get install -y git python-pip locales language-pack-ja && \
+    apt-get install -y docker.io socat && \
     dpkg-reconfigure -f noninteractive locales && \
     update-locale LANG=${LANG} && \
     apt-get upgrade -y && \

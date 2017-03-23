@@ -2,9 +2,10 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import uuid
+# import uuid
 import random
 import subprocess
+from fabric.api import local
 
 import docker
 from .ssh_rev_tunnel import ReverseTunnel
@@ -24,8 +25,9 @@ class DockerRegistry(object):
         cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
                '{}_docker_registry:/var/lib/registry'.format(self.project_name),
                'registry:2.3.0']
-        self.plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-        # self.plist.append(subprocess.Popen(cmd))
+        # print ' '.join(cmd)
+        # self.plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        self.plist.append(subprocess.Popen(cmd))
         # import time
         # time.sleep(10)
         return port
@@ -77,7 +79,8 @@ class DockerTunnel(object):
         #         (["-S", ] if self.sudo_password else []) +
         # ["socat", "UNIX-LISTEN:{},fork,reuseaddr".format(sock_name), "UNIX-CONNECT\:/var/run/docker.sock"])
 
-        self.plist.append(subprocess.Popen(cmd0, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        # self.plist.append(subprocess.Popen(cmd0, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+        self.plist.append(subprocess.Popen(cmd0))
         # p = subprocess.Popen(cmd1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # if self.sudo_password:
         #     p.stdin.write(self.sudo_password + '\n')
@@ -135,14 +138,16 @@ class DockerProxy(object):
         self.__remote_client = None
 
     def push(self, image, tag):
-        name = '{}/{}'.format(self.registry, tag)
+        name = '{}/{}'.format(self.registry, tag.split(':')[0])
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
         image.tag(name)
         self.local_client.images.push(name)
-        self.remote_client.images.pull(name)
+        self.local_client.images.pull(name)
+        self.remote_client.images.pull(name)  # ここで失敗するとno space left on deviceの可能性大
+        # local('docker -H {} pull {}'.format(self.sock, name))
         remote_image = self.remote_client.images.get(name)
-        remote_image.tag(tag)
+        remote_image.tag(tag.split(':')[0])
         return remote_image
 
     def getRegistry(self):

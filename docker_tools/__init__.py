@@ -13,6 +13,7 @@ from . import compose_tools as compose  # NOQA
 
 @task
 def run(image_name, *args, **kw):
+    """run:<image_name> """
     with over_ssh.DockerProxy(
             env['host_string'],
             os.path.basename(os.getcwd())) as proxy:
@@ -22,6 +23,7 @@ def run(image_name, *args, **kw):
 
 @task
 def push(image, tag):
+    """push:<image_name>,<image_tag> """
     with over_ssh.DockerProxy(
             env['host_string'],
             os.path.basename(os.getcwd())) as proxy:
