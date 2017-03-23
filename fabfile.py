@@ -2,8 +2,10 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
+import uuid
 import re
 import getpass
+import os
 
 from fabric.decorators import task
 from fabric.state import env
@@ -31,6 +33,7 @@ def setup_aws_ec2(username, id_rsa_pub=None):
     if res.return_code:
         sudo('groupadd dev')
     user_add(username, id_rsa_pub)
+    docker.create_tls_cert('/home/{}/.ssh/localhost'.format(username))
     with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
         sudo('apt upgrade -y')

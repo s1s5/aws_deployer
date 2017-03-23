@@ -2,13 +2,63 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-# import uuid
+import uuid
 import random
 import subprocess
-from fabric.api import local
+import os
+import multiprocessing
+
+from fabric.state import env
+from fabric.api import local, get, put, run, sudo, remote_tunnel
+from fabric.decorators import task
+from fabric.contrib.console import confirm as fab_confirm
+from fabric.contrib.files import exists
 
 import docker
 from .ssh_rev_tunnel import ReverseTunnel
+# from ..utility import create_tls_cert
+
+
+def get_base_filename(run_on_localhost):
+    if run_on_localhost:
+        filename = os.path.join(os.path.expanduser("~"), '.ssh', 'localhost')
+    else:
+        filename = os.path.join('/home', env.user, '.ssh', 'localhost')
+    return filename
+
+
+@task
+def create_tls_cert(filename=None, confirm_overwrite=True, run_on_localhost=False):
+    if filename is None:
+        filename = get_base_filename(run_on_localhost)
+    if run_on_localhost:
+        _run = local
+        _exists = os.path.exists
+    else:
+        _run = run
+        _exists = exists
+    if _exists(filename + '.pem'):
+        if not confirm_overwrite:
+            return
+        if not fab_confirm("overwrite {} ?".format(filename), default=False):
+            return
+    onetime_pass = uuid.uuid4().hex
+    kw = {
+        'filename': filename,
+        'password': onetime_pass,
+    }
+    _run('openssl genrsa -des3 -out {filename}.key '
+         '-passout pass:{password} 2048'.format(**kw))
+    _run('openssl req -passin pass:{password} -new -key {filename}.key '
+         '-out {filename}.csr  -subj "/CN=localhost"'.format(**kw))
+    _run('cp {filename}.key {filename}.key.org'.format(**kw))
+    _run('openssl rsa -passin pass:{password} -in {filename}.key.org '
+         '-out {filename}.key'.format(**kw))
+    _run('openssl x509 -req -days 365 -in {filename}.csr '
+         '-signkey {filename}.key -out {filename}.crt'.format(**kw))
+    _run('cat {filename}.crt {filename}.key > {filename}.pem'.format(**kw))
+    _run('chmod 600 {filename}.key'.format(**kw))
+    _run('chmod 600 {filename}.pem'.format(**kw))
 
 
 class DockerRegistry(object):
@@ -52,6 +102,7 @@ class DockerTunnel(object):
         self.hostname = hostname
         self.plist = []
         self.port = port
+        self.tmp_file = None
 
     def __enter__(self):
         if self.plist:
@@ -63,13 +114,64 @@ class DockerTunnel(object):
             port = self.port
 
         # sock_name = '~/.docker_tunnel_{}'.format(uuid.uuid4().hex)
-        import multiprocessing
-        proc = multiprocessing.Process(target=_socat_remote, args=(self.hostname, port))
-        proc.start()
-        self.proc = proc
+        # proc = multiprocessing.Process(target=_socat_remote, args=(self.hostname, port))
+        # proc.start()
+        # self.proc = proc
+
+        local_basename = get_base_filename(True)
+        remote_basename = get_base_filename(False)
+        tmp_file = '/tmp/{}.crt'.format(uuid.uuid4().hex)
+        create_tls_cert(confirm_overwrite=False, run_on_localhost=True)
+        create_tls_cert(confirm_overwrite=False, run_on_localhost=False)
+        put(local_path='{}.crt'.format(local_basename), remote_path=tmp_file)
+        get(local_path=tmp_file, remote_path='{}.crt'.format(remote_basename))
+
+        kw = {
+            'sock': '/tmp/{}.sock'.format(uuid.uuid4().hex),
+            'port': port,
+            'lpem': '{}.pem'.format(local_basename),
+            'rpem': '{}.pem'.format(remote_basename),
+            'remote_host': self.hostname,
+            'crt': tmp_file,
+        }
+        sudo("true")
+        print env
+
+        def _local_listen(**kw):
+            local("socat unix-listen:{sock},fork,mode=600 "
+                  "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw))
+
+        def _local_forward(**kw):
+            local("socat TCP-LISTEN:{port},reuseaddr,fork "
+                  "EXEC:'ssh {remote_host} socat STDIO \"TCP:127.0.0.1:{port}\"'".format(**kw))
+
+        def _remote_forward(**kw):
+            sudo("socat openssl-listen:{port},fork,reuseaddr,cert={rpem},cafile={crt} "
+                 "UNIX-CONNECT:/var/run/docker.sock".format(**kw))
+
+        # self.plist.append(multiprocessing.Process(target=_local_listen, kwargs=kw))
+        # self.plist.append(multiprocessing.Process(target=_local_forward, kwargs=kw))
+        # self.plist.append(multiprocessing.Process(target=_remote_forward, kwargs=kw))
+        # for i in self.plist:
+        #     i.start()
+        self.tmp_file = tmp_file
+        # import time
+        # time.sleep(60)
+        # self.tunnel = remote_tunnel(port)
+        # self.tunnel.__enter__()
 
         cmd0 = ["socat", "TCP-LISTEN:{},reuseaddr,fork".format(port),
-                "EXEC:'ssh {} socat STDIO TCP:127.0.0.1:{}'".format(self.hostname, port)]
+                "EXEC:'ssh {} socat STDIO \"TCP:127.0.0.1:{}\"'".format(self.hostname, port)]
+        cmd1 = ["socat", "unix-listen:{sock},fork,mode=600".format(**kw),
+                "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
+        cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
+                (["-S", ] if env['password'] else []) + 
+                [("socat openssl-listen:{port},fork,reuseaddr,cert={rpem},cafile={crt} "
+                  "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+
+        print 'cmd0:', ' '.join(cmd0)
+        print 'cmd1:', ' '.join(cmd1)
+        print 'cmd2:', ' '.join(cmd2)
         # cmd1 = (["ssh", "-kTax", self.hostname, "sudo", ] +
         #         (["-S", ] if self.sudo_password else []) +
         #         ["socat", "TCP-LISTEN:{},fork,reuseaddr".format(port), "UNIX-CONNECT\:/var/run/docker.sock"])
@@ -79,28 +181,41 @@ class DockerTunnel(object):
         #         (["-S", ] if self.sudo_password else []) +
         # ["socat", "UNIX-LISTEN:{},fork,reuseaddr".format(sock_name), "UNIX-CONNECT\:/var/run/docker.sock"])
 
-        # self.plist.append(subprocess.Popen(cmd0, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
         self.plist.append(subprocess.Popen(cmd0))
+        self.plist.append(subprocess.Popen(cmd1))
+        p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.plist.append(p2)
+        # self.plist.append(subprocess.Popen(cmd0))
         # p = subprocess.Popen(cmd1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        # if self.sudo_password:
-        #     p.stdin.write(self.sudo_password + '\n')
-        #     p.stdin.flush()
+        if env['password']:
+            p2.stdin.write(env['password'] + '\n')
+            p2.stdin.flush()
         # self.p = p
         # self.plist.append(p)
         # import time
         # time.sleep(10)
-        return port
+        self.sock = kw['sock']
+        return self.sock
 
     def __exit__(self, type_, value, traceback):
-        from signal import SIGINT
-        # self.p.stdin.close()
-        self.proc.terminate()
-        # import time
-        # time.sleep(10)
-        for p in self.plist:
-            p.send_signal(SIGINT)
-            p.wait()
+        # from signal import SIGINT
+        # # self.p.stdin.close()
+        # self.proc.terminate()
+        # # import time
+        # # time.sleep(10)
+        # for p in self.plist:
+        #     p.send_signal(SIGINT)
+        #     p.wait()
+        [x.terminate() for x in self.plist]
         self.plist = []
+        if os.path.exists(self.tmp_file):
+            os.remove(self.tmp_file)
+        if exists(self.tmp_file):
+            run('rm {}'.format(self.tmp_file))
+        if os.path.exists(self.sock):
+            os.remove(self.sock)
+        # self.tunnel.__exit__(type_, value, traceback)
+        # self.tunnel = None
 
 
 class DockerProxy(object):
@@ -119,7 +234,7 @@ class DockerProxy(object):
         self.dt = DockerTunnel(self.hostname)
         self.st = ReverseTunnel(self.registry_port, self.registry_port)
         self.reg.__enter__()
-        self.dt_port = self.dt.__enter__()
+        self.dt_sock = self.dt.__enter__()
         self.st.__enter__()
 
         # waiting for service
@@ -154,7 +269,7 @@ class DockerProxy(object):
         return '127.0.0.1:{}'.format(self.registry_port)
 
     def getSock(self):
-        return 'tcp://127.0.0.1:{}'.format(self.dt_port)
+        return 'unix://{}'.format(self.dt_sock)
 
     def getLocalClient(self):
         if self.__local_client is None:
@@ -163,6 +278,7 @@ class DockerProxy(object):
 
     def getRemoteClient(self):
         if self.__remote_client is None:
+            print 'socket -> ', self.sock
             self.__remote_client = docker.from_env(environment=dict(DOCKER_HOST=self.sock))
         return self.__remote_client
 

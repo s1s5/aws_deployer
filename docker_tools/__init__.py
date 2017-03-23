@@ -8,7 +8,28 @@ from fabric.decorators import task
 from fabric.state import env
 
 from . import over_ssh
+from .over_ssh import create_tls_cert  # NOQA
 from . import compose_tools as compose  # NOQA
+
+
+@task
+def ps(*args, **kw):
+    """ps """
+    with over_ssh.DockerProxy(
+            env['host_string'],
+            os.path.basename(os.getcwd())) as proxy:
+        for container in proxy.remote_client.containers.list():
+            print container
+
+
+@task
+def images(*args, **kw):
+    """images """
+    with over_ssh.DockerProxy(
+            env['host_string'],
+            os.path.basename(os.getcwd())) as proxy:
+        for image in proxy.remote_client.images.list():
+            print image
 
 
 @task
