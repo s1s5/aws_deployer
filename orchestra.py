@@ -162,6 +162,8 @@ def load_settings(filename):
                     project.up(*args, **kwargs)
                 else:
                     raise Exception('unknown cmd={}, args={}, kwargs={}'.format(cmd, args, kwargs))
+            import time
+            time.sleep(10)
 
         execute(docker_tools.execute, run,
                 hosts=[str(host)])

@@ -6,6 +6,7 @@ import uuid
 import random
 import subprocess
 import os
+import requests
 # import multiprocessing
 
 from fabric.state import env
@@ -72,22 +73,39 @@ class DockerRegistry(object):
             port = random.randint(32768, 65535)
         else:
             port = self.port
-        cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
-               '{}_docker_registry:/var/lib/registry'.format(self.project_name),
-               'registry:2.3.0']
+        self.local_client = docker.from_env()
+        environment = {
+        }
+        volumes = {
+            '{}_docker_registry'.format(self.project_name): {'bind': '/var/lib/registry', 'mode': 'rw'},
+        }
+        ports = {
+            '5000': port,
+        }
+        self.__container = self.local_client.containers.run(
+            'registry:2.3.0', environment=environment, ports=ports, volumes=volumes,
+            detach=True)
+        # cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
+        #        '{}_docker_registry:/var/lib/registry'.format(self.project_name),
+        #        'registry:2.3.0']
         # print ' '.join(cmd)
         # self.plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-        self.plist.append(subprocess.Popen(cmd))
+        # self.plist.append(subprocess.Popen(cmd))
         # import time
         # time.sleep(10)
         return port
 
     def __exit__(self, type_, value, traceback):
-        from signal import SIGINT
-        for p in self.plist:
-            p.send_signal(SIGINT)
-            p.wait()
-        self.plist = []
+        # from signal import SIGINT
+        # for p in self.plist:
+        #     p.send_signal(SIGINT)
+        #     p.wait()
+        # self.plist = []
+        print dir(self.__container)
+        try:
+            self.__container.stop(timeout=1)
+        except requests.exceptions.Timeout:
+            print "Timeout occurred skipped"
 
 
 def _socat_remote(hostname, port):
