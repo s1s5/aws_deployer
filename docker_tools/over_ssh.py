@@ -9,7 +9,7 @@ import os
 # import multiprocessing
 
 from fabric.state import env
-from fabric.api import local, get, put, run, sudo  # , remote_tunnel
+from fabric.api import local, get, put, run, sudo, warn_only  # , remote_tunnel
 from fabric.decorators import task
 from fabric.contrib.console import confirm as fab_confirm
 from fabric.contrib.files import exists
@@ -167,6 +167,8 @@ class DockerTunnel(object):
                 (["-S", ] if env['password'] else []) +
                 [("socat openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
                   "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+        self.cmd_id = ("socat openssl-listen:{port},fork,forever,"
+                       "reuseaddr,cert={rpem},cafile={crt}".format(**kw))
 
         # print 'cmd0:', ' '.join(cmd0)
         # print 'cmd1:', ' '.join(cmd1)
@@ -217,6 +219,19 @@ class DockerTunnel(object):
             run('rm {}'.format(self.tmp_file))
         if os.path.exists(self.sock):
             os.remove(self.sock)
+
+        ret = subprocess.check_output(['ssh', self.hostname, 'ps', 'aux'])
+        # print type(ret)
+        ret = ret.decode('UTF-8')
+        for line in ret.splitlines():
+            line = line.strip()
+            line = filter(lambda x: x, line.split(' '))
+            pid = line[1]
+            cmd = line[10:]
+            # print self.cmd_id in ' '.join(cmd), self.cmd_id, ' '.join(cmd)
+            if self.cmd_id in ' '.join(cmd):
+                with warn_only():
+                    sudo('kill {}'.format(pid))
         # self.tunnel.__exit__(type_, value, traceback)
         # self.tunnel = None
 
@@ -246,9 +261,9 @@ class DockerProxy(object):
         return self
 
     def __exit__(self, type_, value, traceback):
+        self.st.__exit__(type_, value, traceback)
         self.reg.__exit__(type_, value, traceback)
         self.dt.__exit__(type_, value, traceback)
-        self.st.__exit__(type_, value, traceback)
         self.reg = None
         self.dt = None
         self.st = None
