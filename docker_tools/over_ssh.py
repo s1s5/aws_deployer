@@ -10,7 +10,7 @@ import requests
 # import multiprocessing
 
 from fabric.state import env
-from fabric.api import local, get, put, run, sudo, warn_only  # , remote_tunnel
+from fabric.api import local, get, put, run, sudo, warn_only, hide  # , remote_tunnel
 from fabric.decorators import task
 from fabric.contrib.console import confirm as fab_confirm
 from fabric.contrib.files import exists
@@ -254,7 +254,7 @@ class DockerTunnel(object):
             cmd = line[10:]
             # print self.cmd_id in ' '.join(cmd), self.cmd_id, ' '.join(cmd)
             if self.cmd_id in ' '.join(cmd):
-                with warn_only():
+                with hide('stdout', 'warnings', 'running'), warn_only():
                     sudo('kill {}'.format(pid))
         # self.tunnel.__exit__(type_, value, traceback)
         # self.tunnel = None
