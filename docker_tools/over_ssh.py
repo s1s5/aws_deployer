@@ -101,7 +101,7 @@ class DockerRegistry(object):
         #     p.send_signal(SIGINT)
         #     p.wait()
         # self.plist = []
-        print dir(self.__container)
+        # print dir(self.__container)
         try:
             self.__container.stop(timeout=1)
         except requests.exceptions.Timeout:
@@ -116,11 +116,12 @@ def _socat_remote(hostname, port):
 
 class DockerTunnel(object):
 
-    def __init__(self, hostname, port=-1):
+    def __init__(self, hostname, port=-1, sock_name=None):
         self.hostname = hostname
         self.plist = []
         self.port = port
         self.tmp_file = None
+        self.sock_name = sock_name
 
     def __enter__(self):
         if self.plist:
@@ -130,6 +131,11 @@ class DockerTunnel(object):
             port = random.randint(32768, 65535)
         else:
             port = self.port
+
+        if self.sock_name:
+            sock_name = self.sock_name
+        else:
+            sock_name = '/tmp/{}.sock'.format(uuid.uuid4().hex)
 
         # sock_name = '~/.docker_tunnel_{}'.format(uuid.uuid4().hex)
         # proc = multiprocessing.Process(target=_socat_remote, args=(self.hostname, port))
@@ -145,7 +151,7 @@ class DockerTunnel(object):
         get(local_path=tmp_file, remote_path='{}.crt'.format(remote_basename))
 
         kw = {
-            'sock': '/tmp/{}.sock'.format(uuid.uuid4().hex),
+            'sock': sock_name,
             'port': port,
             'lpem': '{}.pem'.format(local_basename),
             'rpem': '{}.pem'.format(remote_basename),
@@ -255,21 +261,22 @@ class DockerTunnel(object):
 
 
 class DockerProxy(object):
-    def __init__(self, hostname, project_name, registry_port=55124):
+    def __init__(self, hostname, project_name, registry_port=55124, sock_name=None):
         self.hostname = hostname
         self.project_name = project_name
         self.registry_port = registry_port
         self.__local_client = None
         self.__remote_client = None
         self.reg = None
+        self.sock_name = sock_name
 
     def __enter__(self):
         if self.reg is not None:
             raise Exception()
         self.reg = DockerRegistry(self.project_name, -1)
-        self.dt = DockerTunnel(self.hostname)
-        local_registry_port = self.reg.__enter__()
-        self.st = ReverseTunnel(local_registry_port, self.registry_port)
+        self.dt = DockerTunnel(self.hostname, sock_name=self.sock_name)
+        self.local_registry_port = self.reg.__enter__()
+        self.st = ReverseTunnel(self.local_registry_port, self.registry_port)
         self.dt_sock = self.dt.__enter__()
         self.st.__enter__()
 
@@ -289,19 +296,23 @@ class DockerProxy(object):
         self.__remote_client = None
 
     def push(self, image, tag):
-        name = '{}/{}'.format(self.registry, tag.split(':')[0])
+        local_name = '{}/{}'.format(self.local_registry, tag.split(':')[0])
+        remote_name = '{}/{}'.format(self.remote_registry, tag.split(':')[0])
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
-        image.tag(name)
-        self.local_client.images.push(name)
-        self.local_client.images.pull(name)
-        self.remote_client.images.pull(name)  # ここで失敗するとno space left on deviceの可能性大
+        image.tag(local_name)
+        self.local_client.images.push(local_name)
+        self.local_client.images.pull(local_name)
+        self.remote_client.images.pull(remote_name)  # ここで失敗するとno space left on deviceの可能性大
         # local('docker -H {} pull {}'.format(self.sock, name))
-        remote_image = self.remote_client.images.get(name)
+        remote_image = self.remote_client.images.get(remote_name)
         remote_image.tag(tag.split(':')[0])
         return remote_image
 
-    def getRegistry(self):
+    def getLocalRegistry(self):
+        return '127.0.0.1:{}'.format(self.local_registry_port)
+
+    def getRemoteRegistry(self):
         return '127.0.0.1:{}'.format(self.registry_port)
 
     def getSock(self):
@@ -318,7 +329,8 @@ class DockerProxy(object):
             self.__remote_client = docker.from_env(environment=dict(DOCKER_HOST=self.sock))
         return self.__remote_client
 
-    registry = property(getRegistry)
+    local_registry = property(getLocalRegistry)
+    remote_registry = property(getRemoteRegistry)
     sock = property(getSock)
     local_client = property(getLocalClient)
     remote_client = property(getRemoteClient)
