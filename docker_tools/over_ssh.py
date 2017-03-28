@@ -6,10 +6,11 @@ import uuid
 import random
 import subprocess
 import os
+import requests
 # import multiprocessing
 
 from fabric.state import env
-from fabric.api import local, get, put, run, sudo  # , remote_tunnel
+from fabric.api import local, get, put, run, sudo, warn_only, hide  # , remote_tunnel
 from fabric.decorators import task
 from fabric.contrib.console import confirm as fab_confirm
 from fabric.contrib.files import exists
@@ -72,22 +73,39 @@ class DockerRegistry(object):
             port = random.randint(32768, 65535)
         else:
             port = self.port
-        cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
-               '{}_docker_registry:/var/lib/registry'.format(self.project_name),
-               'registry:2.3.0']
+        self.local_client = docker.from_env()
+        environment = {
+        }
+        volumes = {
+            '{}_docker_registry'.format(self.project_name): {'bind': '/var/lib/registry', 'mode': 'rw'},
+        }
+        ports = {
+            '5000': port,
+        }
+        self.__container = self.local_client.containers.run(
+            'registry:2.3.0', environment=environment, ports=ports, volumes=volumes,
+            detach=True)
+        # cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
+        #        '{}_docker_registry:/var/lib/registry'.format(self.project_name),
+        #        'registry:2.3.0']
         # print ' '.join(cmd)
         # self.plist.append(subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-        self.plist.append(subprocess.Popen(cmd))
+        # self.plist.append(subprocess.Popen(cmd))
         # import time
         # time.sleep(10)
         return port
 
     def __exit__(self, type_, value, traceback):
-        from signal import SIGINT
-        for p in self.plist:
-            p.send_signal(SIGINT)
-            p.wait()
-        self.plist = []
+        # from signal import SIGINT
+        # for p in self.plist:
+        #     p.send_signal(SIGINT)
+        #     p.wait()
+        # self.plist = []
+        # print dir(self.__container)
+        try:
+            self.__container.stop(timeout=1)
+        except requests.exceptions.Timeout:
+            print "Timeout occurred skipped"
 
 
 def _socat_remote(hostname, port):
@@ -98,11 +116,12 @@ def _socat_remote(hostname, port):
 
 class DockerTunnel(object):
 
-    def __init__(self, hostname, port=-1):
+    def __init__(self, hostname, port=-1, sock_name=None):
         self.hostname = hostname
         self.plist = []
         self.port = port
         self.tmp_file = None
+        self.sock_name = sock_name
 
     def __enter__(self):
         if self.plist:
@@ -112,6 +131,11 @@ class DockerTunnel(object):
             port = random.randint(32768, 65535)
         else:
             port = self.port
+
+        if self.sock_name:
+            sock_name = self.sock_name
+        else:
+            sock_name = '/tmp/{}.sock'.format(uuid.uuid4().hex)
 
         # sock_name = '~/.docker_tunnel_{}'.format(uuid.uuid4().hex)
         # proc = multiprocessing.Process(target=_socat_remote, args=(self.hostname, port))
@@ -127,7 +151,7 @@ class DockerTunnel(object):
         get(local_path=tmp_file, remote_path='{}.crt'.format(remote_basename))
 
         kw = {
-            'sock': '/tmp/{}.sock'.format(uuid.uuid4().hex),
+            'sock': sock_name,
             'port': port,
             'lpem': '{}.pem'.format(local_basename),
             'rpem': '{}.pem'.format(remote_basename),
@@ -167,6 +191,8 @@ class DockerTunnel(object):
                 (["-S", ] if env['password'] else []) +
                 [("socat openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
                   "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+        self.cmd_id = ("socat openssl-listen:{port},fork,forever,"
+                       "reuseaddr,cert={rpem},cafile={crt}".format(**kw))
 
         # print 'cmd0:', ' '.join(cmd0)
         # print 'cmd1:', ' '.join(cmd1)
@@ -217,26 +243,40 @@ class DockerTunnel(object):
             run('rm {}'.format(self.tmp_file))
         if os.path.exists(self.sock):
             os.remove(self.sock)
+
+        ret = subprocess.check_output(['ssh', self.hostname, 'ps', 'aux'])
+        # print type(ret)
+        ret = ret.decode('UTF-8')
+        for line in ret.splitlines():
+            line = line.strip()
+            line = filter(lambda x: x, line.split(' '))
+            pid = line[1]
+            cmd = line[10:]
+            # print self.cmd_id in ' '.join(cmd), self.cmd_id, ' '.join(cmd)
+            if self.cmd_id in ' '.join(cmd):
+                with hide('stdout', 'warnings', 'running'), warn_only():
+                    sudo('kill {}'.format(pid))
         # self.tunnel.__exit__(type_, value, traceback)
         # self.tunnel = None
 
 
 class DockerProxy(object):
-    def __init__(self, hostname, project_name, registry_port=55124):
+    def __init__(self, hostname, project_name, registry_port=55124, sock_name=None):
         self.hostname = hostname
         self.project_name = project_name
         self.registry_port = registry_port
         self.__local_client = None
         self.__remote_client = None
         self.reg = None
+        self.sock_name = sock_name
 
     def __enter__(self):
         if self.reg is not None:
             raise Exception()
         self.reg = DockerRegistry(self.project_name, -1)
-        self.dt = DockerTunnel(self.hostname)
-        local_registry_port = self.reg.__enter__()
-        self.st = ReverseTunnel(local_registry_port, self.registry_port)
+        self.dt = DockerTunnel(self.hostname, sock_name=self.sock_name)
+        self.local_registry_port = self.reg.__enter__()
+        self.st = ReverseTunnel(self.local_registry_port, self.registry_port)
         self.dt_sock = self.dt.__enter__()
         self.st.__enter__()
 
@@ -246,9 +286,9 @@ class DockerProxy(object):
         return self
 
     def __exit__(self, type_, value, traceback):
+        self.st.__exit__(type_, value, traceback)
         self.reg.__exit__(type_, value, traceback)
         self.dt.__exit__(type_, value, traceback)
-        self.st.__exit__(type_, value, traceback)
         self.reg = None
         self.dt = None
         self.st = None
@@ -256,19 +296,23 @@ class DockerProxy(object):
         self.__remote_client = None
 
     def push(self, image, tag):
-        name = '{}/{}'.format(self.registry, tag.split(':')[0])
+        local_name = '{}/{}'.format(self.local_registry, tag.split(':')[0])
+        remote_name = '{}/{}'.format(self.remote_registry, tag.split(':')[0])
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
-        image.tag(name)
-        self.local_client.images.push(name)
-        self.local_client.images.pull(name)
-        self.remote_client.images.pull(name)  # ここで失敗するとno space left on deviceの可能性大
+        image.tag(local_name)
+        self.local_client.images.push(local_name)
+        self.local_client.images.pull(local_name)
+        self.remote_client.images.pull(remote_name)  # ここで失敗するとno space left on deviceの可能性大
         # local('docker -H {} pull {}'.format(self.sock, name))
-        remote_image = self.remote_client.images.get(name)
+        remote_image = self.remote_client.images.get(remote_name)
         remote_image.tag(tag.split(':')[0])
         return remote_image
 
-    def getRegistry(self):
+    def getLocalRegistry(self):
+        return '127.0.0.1:{}'.format(self.local_registry_port)
+
+    def getRemoteRegistry(self):
         return '127.0.0.1:{}'.format(self.registry_port)
 
     def getSock(self):
@@ -285,7 +329,8 @@ class DockerProxy(object):
             self.__remote_client = docker.from_env(environment=dict(DOCKER_HOST=self.sock))
         return self.__remote_client
 
-    registry = property(getRegistry)
+    local_registry = property(getLocalRegistry)
+    remote_registry = property(getRemoteRegistry)
     sock = property(getSock)
     local_client = property(getLocalClient)
     remote_client = property(getRemoteClient)

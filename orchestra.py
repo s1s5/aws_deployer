@@ -54,7 +54,10 @@ def serialize_inventory(inventory):
     return data
 
 
-def load_compose_settings(context, files):
+def load_compose_settings(context, files, host=None):
+    if host:
+        return command.project_from_options(
+            context, {'--file': files, '--host': host})
     return command.project_from_options(
         context, {'--file': files})
 
@@ -118,43 +121,70 @@ def load_settings(filename):
     else:
         context = filedir
     inventory = load_inventory(get_filename(filedir, d['ansible_inventory']))
-    project = load_compose_settings(context, [get_filename(filedir, x) for x in d['compose_files']])
+
+    def _load_compose_settings(host=None):
+        return load_compose_settings(
+            context, [get_filename(filedir, x) for x in d['compose_files']], host=host)
+    project = _load_compose_settings()
     project.build()
 
-    # debug_dump_inventory(inventory)
-    # debug_dump_compose_project(project)
-
+    debug_dump_inventory(inventory)
+    debug_dump_compose_project(project)
     # print dir(inventory)
     # for i in inventory.get_groups():
     #     print i, inventory.get_hosts(i)
 
-    if True:
-        for service in project.services:
-            hosts = inventory.get_hosts(service.name)
-            print service.name, service.image_name, '=>', hosts
-            if not hosts:
-                continue
-            for host in hosts:
-                name = service.image_name.split(':')[0]
-                execute(docker_tools.push, service.image_name, name, hosts=[str(host)])
+    host_task_map = {}
+    for group in inventory.get_groups():
+        for host in inventory.get_hosts(group):
+            host_task_map[host] = []
 
-    print dir(project)
-    links = []
     for service in project.services:
         hosts = inventory.get_hosts(service.name)
         print service.name, service.image_name, '=>', hosts
-        from pprint import pprint
-        run_kwargs = extract_run_arguments(
-            project.name, service.name, service.config_dict(), d.get('host_aliases', dict()))
-        pprint(service.config_dict())
-        pprint(run_kwargs)
         if not hosts:
             continue
         for host in hosts:
             name = service.image_name.split(':')[0]
-            execute(docker_tools.run, service.image_name.split(':')[0],
-                    hosts=[str(host)], links=links, **run_kwargs)
-        links.append((run_kwargs['name'], run_kwargs['hostname']))
+            host_task_map[host].append(('push', [service.image_name, name], {}))
+            host_task_map[host].append(('compose_up', [], {
+                'service_names': [service.name],
+                'start_deps': False,
+                'detached': True}))
+
+    for host, commands in host_task_map.items():
+        def run(proxy):
+            project = _load_compose_settings(proxy.sock)
+            for cmd, args, kwargs in commands:
+                if cmd == 'push':
+                    proxy.push(*args)
+                elif cmd == 'compose_up':
+                    project.up(*args, **kwargs)
+                else:
+                    raise Exception('unknown cmd={}, args={}, kwargs={}'.format(cmd, args, kwargs))
+            import time
+            time.sleep(10)
+
+        execute(docker_tools.execute, run,
+                hosts=[str(host)])
+
+    # print dir(project)
+    # links = []
+    # for service in project.services:
+    #     hosts = inventory.get_hosts(service.name)
+    #     print service.name, service.image_name, '=>', hosts
+    #     from pprint import pprint
+    #     run_kwargs = extract_run_arguments(
+    #         project.name, service.name, service.config_dict(), d.get('host_aliases', dict()))
+    #     pprint(service.config_dict())
+    #     pprint(run_kwargs)
+    #     if not hosts:
+    #         continue
+    #     for host in hosts:
+    #         name = service.image_name.split(':')[0]
+    #         execute(docker_tools.run, service.image_name.split(':')[0],
+    #                 hosts=[str(host)], links=links, **run_kwargs)
+    #     links.append((run_kwargs['name'], run_kwargs['hostname']))
 
 
 def main(args):
