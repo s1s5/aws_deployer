@@ -2,17 +2,18 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import os
+import uuid
 import re
 import getpass
+import os
 
 from fabric.decorators import task
 from fabric.state import env
-from fabric.api import run, sudo, local, put, warn_only  # prompt
+from fabric.api import run, sudo, local, put, hide, warn_only  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
 
-from fabmisc import docker_tools
+import docker_tools as docker  # NOQA
 
 env.forward_agent = True
 env.use_ssh_config = True
@@ -32,7 +33,8 @@ def setup_aws_ec2(username, id_rsa_pub=None):
     if res.return_code:
         sudo('groupadd dev')
     user_add(username, id_rsa_pub)
-    with shell_env(DEBIAN_FRONTEND='noninteractive'):
+    docker.create_tls_cert('/home/{}/.ssh/localhost'.format(username))
+    with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
         sudo('apt upgrade -y')
         sudo('apt install python2.7 -y', pty=False)
@@ -49,6 +51,16 @@ def user_add(username, id_rsa_pub, sudoer=True):
             local('ssh-keygen -t rsa  -f ~/.ssh/{}id_rsa'.format(hoststring))
             id_rsa_pub = '~/.ssh/{}id_rsa.pub'.format(hoststring)
             id_rsa = '~/.ssh/{}id_rsa'.format(hoststring)
+            if os.path.exists(id_rsa_pub):
+                for i in range(100000):
+                    id_rsa_pub = '~/.ssh/{}id_rsa.{}.pub'.format(hoststring, i)
+                    if not os.path.exists(id_rsa_pub):
+                        break
+            if os.path.exists(id_rsa):
+                for i in range(100000):
+                    id_rsa = '~/.ssh/{}id_rsa.{}'.format(hoststring, i)
+                    if not os.path.exists(id_rsa):
+                        break
         else:
             id_rsa = '<set your id_rsa path for {}>'.format(id_rsa_pub)
 
@@ -72,6 +84,7 @@ def user_add(username, id_rsa_pub, sudoer=True):
             puts('    Port 22')
             puts('    IdentityFile {}'.format(id_rsa))
             puts('    IdentitiesOnly yes')
+            puts('#    ProxyCommand  ssh -W %h:%p <gateway>')
         except:
             sudo('deluser {}'.format(username))
             raise
@@ -93,18 +106,3 @@ def setup_nat_instance():
     sudo('netfilter-persistent save')
 
 
-@task
-def docker_run(image_name, *args, **kw):
-    with docker_tools.DockerProxy(
-            os.path.basename(os.getcwd()),
-            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
-        image = proxy.remote_client.images.get(image_name)
-        proxy.remote_client.containers.run(image, *args, **kw)
-
-
-@task
-def docker_push(image, tag):
-    with docker_tools.DockerProxy(
-            os.path.basename(os.getcwd()),
-            sudo_password=getpass.getpass('[sudo] password: ')) as proxy:
-        proxy.push(image, tag)
