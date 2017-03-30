@@ -32,8 +32,9 @@ def setup_aws_ec2(username, id_rsa_pub=None):
         res = sudo("grep -c '^dev:' /etc/group")
     if res.return_code:
         sudo('groupadd dev')
-    user_add(username, id_rsa_pub)
-    docker.create_tls_cert('/home/{}/.ssh/localhost'.format(username))
+    if username != '-':
+        user_add(username, id_rsa_pub)
+    # docker.create_tls_cert('/home/{}/.ssh/localhost'.format(username))
     with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
         sudo('apt upgrade -y')

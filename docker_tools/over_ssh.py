@@ -296,10 +296,17 @@ class DockerProxy(object):
         self.__remote_client = None
 
     def push(self, image, tag):
-        local_name = '{}/{}'.format(self.local_registry, tag.split(':')[0])
-        remote_name = '{}/{}'.format(self.remote_registry, tag.split(':')[0])
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
+        try:
+            self.remote_client.images.remove(tag.split(':')[0])
+        except docker.errors.APIError:
+            pass
+        except docker.errors.ImageNotFound:
+            pass
+        iid = image.id.split(':')[1]
+        local_name = '{}/{}'.format(self.local_registry, iid)
+        remote_name = '{}/{}'.format(self.remote_registry, iid)
         image.tag(local_name)
         self.local_client.images.push(local_name)
         self.local_client.images.pull(local_name)
@@ -307,6 +314,8 @@ class DockerProxy(object):
         # local('docker -H {} pull {}'.format(self.sock, name))
         remote_image = self.remote_client.images.get(remote_name)
         remote_image.tag(tag.split(':')[0])
+        self.local_client.images.remove(local_name)
+        self.remote_client.images.remove(remote_name)
         return remote_image
 
     def getLocalRegistry(self):
