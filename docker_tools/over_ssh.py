@@ -14,6 +14,7 @@ from fabric.api import local, get, put, run, sudo, warn_only, hide  # , remote_t
 from fabric.decorators import task
 from fabric.contrib.console import confirm as fab_confirm
 from fabric.contrib.files import exists
+from fabric.utils import puts
 
 import docker
 from .ssh_rev_tunnel import ReverseTunnel
@@ -299,6 +300,10 @@ class DockerProxy(object):
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
         try:
+            remote_image = self.remote_client.images.get(tag.split(':')[0])
+            if image.id == remote_image.id:
+                puts('image id same skipped {} -> {}'.format(tag, image.id))
+                return
             self.remote_client.images.remove(tag.split(':')[0])
         except docker.errors.APIError:
             pass

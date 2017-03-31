@@ -8,6 +8,7 @@ import yaml
 
 from fabric.api import execute
 from fabric.state import env
+from fabric.utils import puts
 
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars import VariableManager
@@ -153,9 +154,15 @@ def load_settings(filename):
                 'detached': True}))
 
     for host, commands in host_task_map.items():
-        def run(proxy):
+        if not commands:
+            continue
+
+        puts('{} {}'.format(host, commands))
+
+        def _run(proxy):
             project = _load_compose_settings(proxy.sock)
             for cmd, args, kwargs in commands:
+                puts('{} {} {}'.format(cmd, args, kwargs))
                 if cmd == 'push':
                     proxy.push(*args)
                 elif cmd == 'compose_up':
@@ -165,7 +172,7 @@ def load_settings(filename):
             import time
             time.sleep(10)
 
-        execute(docker_tools.execute, run,
+        execute(docker_tools.execute, _run,
                 hosts=[str(host)])
 
     # print dir(project)
