@@ -1,4 +1,4 @@
--e git+https://github.com/s1s5/fabmisc.git@c3229d4e5e942c26c792f45672597ad353aeb597#egg=fabmisc
+-e git+https://github.com/s1s5/fabmisc.git#egg=fabmisc
 Fabric==1.13.1
 Jinja2==2.8.1
 MarkupSafe==1.0
