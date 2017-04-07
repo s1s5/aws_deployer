@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import os
 import yaml
-
+from pprint import pprint
 
 from fabric.api import execute
 from fabric.state import env
@@ -64,12 +64,10 @@ def load_compose_settings(context, files, host=None):
 
 
 def debug_dump_inventory(inventory):
-    from pprint import pprint
     pprint(serialize_inventory(inventory))
 
 
 def debug_dump_compose_project(project):
-    from pprint import pprint
     for service in project.services:
         print ' - ', service.name, service.image_name
         pprint(service.config_dict())
@@ -135,6 +133,29 @@ def load_settings(filename):
     # for i in inventory.get_groups():
     #     print i, inventory.get_hosts(i)
 
+    services = project.get_services_without_duplicate(
+        None,
+        include_deps=True)
+    print [x.name for x in services]
+
+    # for service in project.services:
+    #     print "=" * 80
+    #     print service.name
+    #     print "-" * 40
+    #     pprint(service.options)
+    #     print "-" * 20
+    #     number = None
+    #     one_off = False
+    #     override_options = {}
+    #     container_options = service._get_container_create_options(
+    #         override_options,
+    #         number or service._next_container_number(one_off=one_off),
+    #         one_off=False,
+    #         previous_container=None,
+    #     )
+    #     pprint(container_options)
+    # return
+
     host_task_map = {}
     for group in inventory.get_groups():
         for host in inventory.get_hosts(group):
@@ -146,7 +167,7 @@ def load_settings(filename):
         if not hosts:
             continue
         for host in hosts:
-            name = service.image_name.split(':')[0]
+            name = service.image_name  # .split(':')[0]
             host_task_map[host].append(('push', [service.image_name, name], {}))
             host_task_map[host].append(('compose_up', [], {
                 'service_names': [service.name],

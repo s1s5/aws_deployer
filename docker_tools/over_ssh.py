@@ -296,13 +296,26 @@ class DockerProxy(object):
         self.__local_client = None
         self.__remote_client = None
 
+    def start(self):
+        self.__enter__()
+
+    def end(self):
+        self.__exit__()
+
+    def __append_tag(self, remote_image, tag):
+        if len(tag.split(':')) > 1:
+            remote_image.tag(*tag.split(':'))
+        else:
+            remote_image.tag(tag)
+
     def push(self, image, tag):
         if isinstance(image, (str, unicode)):
             image = self.local_client.images.get(image)
         try:
-            remote_image = self.remote_client.images.get(tag.split(':')[0])
+            remote_image = self.remote_client.images.get(tag)
             if image.id == remote_image.id:
-                puts('image id same skipped {} -> {}'.format(tag, image.id))
+                # self.__append_tag(remote_image, tag)
+                puts('image ids are same skipped {} -> {}'.format(tag, image.id))
                 return
             self.remote_client.images.remove(tag.split(':')[0])
         except docker.errors.APIError:
@@ -314,11 +327,10 @@ class DockerProxy(object):
         remote_name = '{}/{}'.format(self.remote_registry, iid)
         image.tag(local_name)
         self.local_client.images.push(local_name)
-        self.local_client.images.pull(local_name)
-        self.remote_client.images.pull(remote_name)  # ここで失敗するとno space left on deviceの可能性大
-        # local('docker -H {} pull {}'.format(self.sock, name))
+        # ここで失敗するとno space left on deviceの可能性大
+        self.remote_client.images.pull(remote_name)
         remote_image = self.remote_client.images.get(remote_name)
-        remote_image.tag(tag.split(':')[0])
+        self.__append_tag(remote_image, tag)
         self.local_client.images.remove(local_name)
         self.remote_client.images.remove(remote_name)
         return remote_image
