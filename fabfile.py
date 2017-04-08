@@ -2,14 +2,14 @@
 from __future__ import unicode_literals
 from __future__ import absolute_import
 
-import uuid
+# import uuid
 import re
 import getpass
 import os
 
 from fabric.decorators import task
 from fabric.state import env
-from fabric.api import run, sudo, local, put, hide, warn_only  # prompt
+from fabric.api import settings, run, sudo, local, put, hide, warn_only  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
 
@@ -23,6 +23,14 @@ env.use_ssh_config = True
 def ping():
     """接続テスト"""
     run("echo `hostname` {}".format(env['host_string']))
+
+
+@task
+def reboot():
+    """リブート"""
+    with settings(hide('warnings'),
+                  warn_only=True, ):
+        sudo("shutdown -r now")
 
 
 @task

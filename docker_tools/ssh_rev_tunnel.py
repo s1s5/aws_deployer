@@ -27,7 +27,8 @@ class ReverseTunnel(object):
             local_port = self.local_port
 
         self.plist = []
-        for i in env['all_hosts']:
+        hosts = [env.host_string]
+        for i in hosts:
             cmd = ['ssh', '-R',
                    '{}:localhost:{}'.format(
                        remote_port, local_port),

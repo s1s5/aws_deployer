@@ -7,6 +7,7 @@ import random
 import subprocess
 import os
 import requests
+import threading
 # import multiprocessing
 
 from fabric.state import env
@@ -25,7 +26,9 @@ def get_base_filename(run_on_localhost):
     if run_on_localhost:
         filename = os.path.join(os.path.expanduser("~"), '.ssh', 'localhost')
     else:
-        filename = os.path.join('/home', env.user, '.ssh', 'localhost')
+        with hide('running'), hide('stdout'):
+            username = run('id -un')
+        filename = os.path.join('/home', username, '.ssh', 'localhost')
     return filename
 
 
@@ -78,13 +81,21 @@ class DockerRegistry(object):
         environment = {
         }
         volumes = {
-            '{}_docker_registry'.format(self.project_name): {'bind': '/var/lib/registry', 'mode': 'rw'},
+            '{}_docker_registry'.format(self.project_name): {'type': 'bind', 'bind': '/var/lib/registry', 'mode': 'rw'},
         }
+        for volume in volumes:
+            try:
+                self.local_client.volumes.get(volume)
+            except docker.errors.NotFound:
+                self.local_client.volumes.create(volume)
+
         ports = {
             '5000': port,
         }
+        # print self.local_client.containers.run.__doc__
         self.__container = self.local_client.containers.run(
-            'registry:2.3.0', environment=environment, ports=ports, volumes=volumes,
+            'registry:2.3.0', environment=environment, ports=ports,
+            volumes=volumes,
             detach=True)
         # cmd = ['docker', 'run', '-p', '{}:5000'.format(port), '-v',
         #        '{}_docker_registry:/var/lib/registry'.format(self.project_name),
@@ -262,7 +273,7 @@ class DockerTunnel(object):
 
 
 class DockerProxy(object):
-    def __init__(self, hostname, project_name, registry_port=55124, sock_name=None):
+    def __init__(self, hostname, project_name, registry_port=55124, sock_name=None, sleep_time=10):
         self.hostname = hostname
         self.project_name = project_name
         self.registry_port = registry_port
@@ -270,6 +281,7 @@ class DockerProxy(object):
         self.__remote_client = None
         self.reg = None
         self.sock_name = sock_name
+        self.sleep_time = sleep_time
 
     def __enter__(self):
         if self.reg is not None:
@@ -282,8 +294,9 @@ class DockerProxy(object):
         self.st.__enter__()
 
         # waiting for service
-        import time
-        time.sleep(10)
+        if self.sleep_time > 0:
+            import time
+            time.sleep(10)
         return self
 
     def __exit__(self, type_, value, traceback):
@@ -300,7 +313,7 @@ class DockerProxy(object):
         self.__enter__()
 
     def end(self):
-        self.__exit__()
+        self.__exit__(None, None, None)
 
     def __append_tag(self, remote_image, tag):
         if len(tag.split(':')) > 1:
@@ -360,6 +373,140 @@ class DockerProxy(object):
     sock = property(getSock)
     local_client = property(getLocalClient)
     remote_client = property(getRemoteClient)
+
+
+class DockerMultipleProxy(object):
+    def __init__(self, hostnames, project_name, registry_port=55124, sleep_time=10):
+        self.hostnames = hostnames
+        self.project_name = project_name
+        self.registry_port = registry_port
+        self.__local_client = None
+        self.__remote_clients = None
+        self.reg = None
+        self.sleep_time = sleep_time
+
+    def __enter__(self):
+        if self.reg is not None:
+            raise Exception()
+        self.reg = DockerRegistry(self.project_name, -1)
+        self.local_registry_port = self.reg.__enter__()
+        docker_tunnels = []
+        rev_tunnels = []
+        socks_map = {}
+        for host in self.hostnames:
+            env.host_string = host
+            dt = DockerTunnel(host)
+            rt = ReverseTunnel(self.local_registry_port, self.registry_port)
+            # print 'reverse tunnel local:{}, remote:{}'.format(self.local_registry_port, self.registry_port)
+            socks_map[host] = dt.__enter__()
+            rt.__enter__()
+            docker_tunnels.append(dt)
+            rev_tunnels.append(rt)
+
+        self.socks_map = socks_map
+        self.docker_tunnels = docker_tunnels
+        self.rev_tunnels = rev_tunnels
+        # waiting for service
+        if self.sleep_time > 0:
+            import time
+            time.sleep(self.sleep_time)
+        self.getRemoteClients()
+        return self
+
+    def __exit__(self, type_, value, traceback):
+        [x.__exit__(type_, value, traceback) for x in self.rev_tunnels]
+        [x.__exit__(type_, value, traceback) for x in self.docker_tunnels]
+        self.reg.__exit__(type_, value, traceback)
+        self.reg = None
+        self.dt = None
+        self.st = None
+        self.__local_client = None
+        self.__remote_clients = None
+
+    def start(self):
+        self.__enter__()
+
+    def end(self):
+        self.__exit__(None, None, None)
+
+    def __append_tag(self, remote_image, tag):
+        if len(tag.split(':')) > 1:
+            remote_image.tag(*tag.split(':'))
+        else:
+            remote_image.tag(tag)
+
+    def __push(self, remote_client, image, tag):
+        if isinstance(image, (str, unicode)):
+            image = self.local_client.images.get(image)
+        try:
+            remote_image = remote_client.images.get(tag)
+            if image.id == remote_image.id:
+                # self.__append_tag(remote_image, tag)
+                puts('image ids are same skipped {} -> {}'.format(tag, image.id))
+                return
+            remote_client.images.remove(tag.split(':')[0])
+        except docker.errors.APIError:
+            pass
+        except docker.errors.ImageNotFound:
+            pass
+        iid = image.id.split(':')[1]
+        local_name = '{}/{}'.format(self.local_registry, iid)
+        remote_name = '{}/{}'.format(self.remote_registry, iid)
+        image.tag(local_name)
+        self.local_client.images.push(local_name)
+        # ここで失敗するとno space left on deviceの可能性大
+        remote_client.images.pull(remote_name)
+        remote_image = remote_client.images.get(remote_name)
+        self.__append_tag(remote_image, tag)
+        self.local_client.images.remove(local_name)
+        remote_client.images.remove(remote_name)
+        return remote_image
+
+    def __push_list(self, hostname, image_tag_list):
+        # print hostname, type(hostname), self.remote_clients
+        rcl = self.remote_clients[hostname]
+        [self.__push(rcl, x[0], x[1]) for x in image_tag_list]
+
+    def push(self, image_map):
+        tl = []
+        for host, image_tag_list in image_map.items():
+            for image_tag in image_tag_list:
+                t = threading.Thread(
+                    target=self.__push_list, args=(host, [image_tag],))
+                t.start()
+                tl.append(t)
+        [x.join() for x in tl]
+
+    def getLocalRegistry(self):
+        return '127.0.0.1:{}'.format(self.local_registry_port)
+
+    def getRemoteRegistry(self):
+        return '127.0.0.1:{}'.format(self.registry_port)
+
+    def getSock(self, hostname):
+        return 'unix://{}'.format(self.socks_map[hostname])
+
+    def getLocalClient(self):
+        if self.__local_client is None:
+            self.__local_client = docker.from_env()
+        return self.__local_client
+
+    def getRemoteClients(self):
+        if self.__remote_clients is None:
+            # print 'socket -> ', self.sock
+            self.__remote_clients = {}
+            # print self.socks_map
+            for host in self.socks_map:
+                # print host, self.getSock(host)
+                self.__remote_clients[host] = docker.from_env(environment=dict(DOCKER_HOST=self.getSock(host)))
+        # print self.__remote_clients
+        return self.__remote_clients
+
+    local_registry = property(getLocalRegistry)
+    remote_registry = property(getRemoteRegistry)
+    sock = property(getSock)
+    local_client = property(getLocalClient)
+    remote_clients = property(getRemoteClients)
 
 
 class DockerImage(object):

@@ -97,3 +97,10 @@ def execute(*functions):
             os.path.basename(os.getcwd())) as proxy:
         for func in functions:
             func(proxy)
+
+
+@task
+def get_proxy():
+    return over_ssh.DockerProxy(
+        env['host_string'],
+        os.path.basename(os.getcwd()))
