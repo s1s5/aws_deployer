@@ -9,7 +9,7 @@ import yaml
 from pprint import pprint
 import threading
 
-from fabric.api import execute
+from fabric.api import execute, hide
 from fabric.state import env
 from fabric.utils import puts
 
@@ -125,10 +125,11 @@ def resolveIp(src_hostname, dst_hostname):
     if key in __RESOLVE_CACHE:
         return __RESOLVE_CACHE[key]
     env.host_string = src_hostname
-    s = run("getent hosts %s | awk '{ print $1 }'" % dst_hostname).strip()
-    if not s:
-        s = run("dig +short %s" % dst_hostname).strip()
-    print '"{}"'.format(s)
+    with hide('running'), hide('stdout'):
+        s = run("getent hosts %s | awk '{ print $1 }'" % dst_hostname).strip()
+        if not s:
+            s = run("dig +short %s" % dst_hostname).strip()
+    # print '"{}"'.format(s)
     __RESOLVE_CACHE[key] = s
     return s
 
@@ -187,7 +188,8 @@ class Orchestra(object):
             extra_hosts = list(set(extra_hosts))
             services[service.name] = self.conf_dict.get('override', {}).get(service.name, {})
             base_hosts = ['{}:{}'.format(x[0], x[1]) for x in service.options.get('extra_hosts', {}).items()]
-            services[service.name]['extra_hosts'] = services[service.name].get('extra_hosts', base_hosts) + extra_hosts
+            services[service.name]['extra_hosts'] = services[service.name].get(
+                'extra_hosts', base_hosts) + extra_hosts
 
         self.addConfig(config_data, services)
         # print config_data.version
@@ -212,7 +214,8 @@ class Orchestra(object):
 
     def getProject(self, host=None):
         project = load_compose_settings(
-            self.compose_context, [get_filename(self.filedir, x) for x in self.conf_dict['compose_files']], host=host)
+            self.compose_context, [get_filename(self.filedir, x)
+                                   for x in self.conf_dict['compose_files']], host=host)
         # for service in project.services:
         #     d = self.conf_dict.get('override', {}).get('all', {})
         #     d = self.updateDict(d, self.conf_dict.get('override', {}).get(service.name, {}))
@@ -253,15 +256,18 @@ class Orchestra(object):
                     base[key] = copy.deepcopy(d[key])
         return base
 
-    def start(self, build=True):
-        # t = threading.Thread(target=self.build)
-        # t.start()
+    def start(self, build=False):
+        if build:
+            t = threading.Thread(target=self.build)
+            t.start()
         self.proxy = over_ssh.DockerMultipleProxy(
             [str(x) for x in self.host_services_map.keys()],
             self.default_project.name, sleep_time=1)
         self.proxy.start()
-        self.projects = {host: self.getProject(self.proxy.getSock(host)) for host in self.host_services_map.keys()}
-        # t.join()
+        self.projects = {host: self.getProject(self.proxy.getSock(host))
+                         for host in self.host_services_map.keys()}
+        if build:
+            t.join()
 
     def end(self):
         self.proxy.end()
@@ -302,7 +308,7 @@ def load_settings(filename):
     # resolveIp('subuntu0', 'subuntu1')
     # return
     orchestra = Orchestra(filename)
-
+    orchestra.default_project.build()
     # def get_deps(proj, service):
     #     return {
     #         (proj.get_service(dep), config)

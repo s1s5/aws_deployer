@@ -442,7 +442,7 @@ class DockerMultipleProxy(object):
             remote_image = remote_client.images.get(tag)
             if image.id == remote_image.id:
                 # self.__append_tag(remote_image, tag)
-                puts('image ids are same skipped {} -> {}'.format(tag, image.id))
+                puts('image ids are same skipped {} {}'.format(tag, image.id))
                 return
             remote_client.images.remove(tag.split(':')[0])
         except docker.errors.APIError:
@@ -458,8 +458,16 @@ class DockerMultipleProxy(object):
         remote_client.images.pull(remote_name)
         remote_image = remote_client.images.get(remote_name)
         self.__append_tag(remote_image, tag)
-        self.local_client.images.remove(local_name)
-        remote_client.images.remove(remote_name)
+        try:
+            self.local_client.images.remove(local_name)
+        except docker.errors.ImageNotFound:
+            pass
+        try:
+            remote_client.images.remove(remote_name)
+        except docker.errors.ImageNotFound:
+            pass
+
+        puts('push finished {} {}'.format(tag, image.id))
         return remote_image
 
     def __push_list(self, hostname, image_tag_list):
@@ -470,11 +478,10 @@ class DockerMultipleProxy(object):
     def push(self, image_map):
         tl = []
         for host, image_tag_list in image_map.items():
-            for image_tag in image_tag_list:
-                t = threading.Thread(
-                    target=self.__push_list, args=(host, [image_tag],))
-                t.start()
-                tl.append(t)
+            t = threading.Thread(
+                target=self.__push_list, args=(host, image_tag_list,))
+            t.start()
+            tl.append(t)
         [x.join() for x in tl]
 
     def getLocalRegistry(self):
@@ -498,7 +505,8 @@ class DockerMultipleProxy(object):
             # print self.socks_map
             for host in self.socks_map:
                 # print host, self.getSock(host)
-                self.__remote_clients[host] = docker.from_env(environment=dict(DOCKER_HOST=self.getSock(host)))
+                self.__remote_clients[host] = docker.from_env(
+                    environment=dict(DOCKER_HOST=self.getSock(host)))
         # print self.__remote_clients
         return self.__remote_clients
 

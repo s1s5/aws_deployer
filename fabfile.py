@@ -12,6 +12,7 @@ from fabric.state import env
 from fabric.api import settings, run, sudo, local, put, hide, warn_only  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
+from fabric.contrib.files import append, exists
 
 import docker_tools as docker  # NOQA
 
@@ -115,3 +116,15 @@ def setup_nat_instance():
     sudo('netfilter-persistent save')
 
 
+@task
+def create_swap():
+    """swapファイルの作成"""
+    if exists('/swapfile'):
+        puts('failed to create /swapfile')
+        return
+    sudo('fallocate -l 1G /swapfile')
+    sudo('chmod 600 /swapfile')
+    sudo('mkswap /swapfile')
+    sudo('swapon /swapfile')
+    # add "/swapfile none swap sw 0 0"
+    append('/etc/fstab', "/swapfile none swap sw 0 0", use_sudo=True)
