@@ -8,7 +8,7 @@ import os
 from fabric.decorators import task
 from fabric.state import env
 from fabric.utils import puts
-from fabric.api import local
+from fabric.api import local, sudo
 
 from . import over_ssh
 from .over_ssh import create_tls_cert  # NOQA
@@ -59,6 +59,14 @@ def ps(*args, **kw):
             os.path.basename(os.getcwd())) as proxy:
         for container in proxy.remote_client.containers.list():
             print container
+
+
+@task
+def clear_images():
+    """clear all images"""
+    sudo('docker stop `sudo docker ps -q`')
+    sudo('docker rm -f `sudo docker ps -aq`')
+    sudo('docker rmi -f `sudo docker images -aq`')
 
 
 @task
