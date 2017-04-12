@@ -44,6 +44,14 @@
   notify:
     - restart td-agent
 
+- name: copy logrotate conf
+  copy:
+    src:  logrotate_docker-container
+    dest: /etc/logrotate.d/docker-container
+    owner: root
+    group: root
+    mode: 0644
+
 # # from https://github.com/spk83/ansible-docker-provision-thinpool
 # - name: check if the device has partition layout
 #   become: true

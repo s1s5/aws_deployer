@@ -1,0 +1,9 @@
+/var/log/docker/*/* {
+  rotate 8
+  weekly
+  compress
+  size=128M
+  missingok
+  delaycompress
+  copytruncate
+}
