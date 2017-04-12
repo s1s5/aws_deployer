@@ -12,7 +12,7 @@ from pprint import pprint
 import threading
 import subprocess
 
-# from fabric.api import execute, hide
+from fabric.api import hide  # execute
 from fabric.state import env
 # from fabric.utils import puts
 
@@ -79,7 +79,9 @@ def debug_dump_inventory(inventory):
 
 def debug_dump_compose_project(project):
     for service in project.services:
-        print ' - ', service.name, service.image_name, '-' * 20
+        if service.config_dict().get('options', {}).get('command') == 'true':
+            continue
+        print '-' * 20, service.name, service.image_name, '-' * 20
         pprint(service.config_dict())
         # print 'exposed ports:', service.image().get('ExposedPorts', [])
         # print(dir(service))
@@ -152,6 +154,8 @@ def resolveIp(src_hostname, dst_hostname):
 
 
 class Orchestra(object):
+    timezone = 'Japan'
+
     def __init__(self, filename):
         self.conf_dict = yaml.load(open(filename))
 
@@ -177,6 +181,12 @@ class Orchestra(object):
         config_data = dc_config.load(config_details)
 
         all_override = self.conf_dict.get('override', {}).get('all', {})
+        l = all_override.get('environment', [])
+
+        l.append('PROJECT_NAME={}'.format(self.conf_dict['project']))
+        l.append('TZ={}'.format(self.timezone))
+
+        all_override['environment'] = l
         all_services = {}
         for service in project.services:
             all_services[service.name] = all_override
@@ -307,6 +317,7 @@ class Orchestra(object):
                     'service_names': service_names,
                     'start_deps': False,
                     'detached': True,
+                    'remove_orphans': True,
                 })
             t.start()
             tl.append(t)
@@ -332,7 +343,7 @@ class Orchestra(object):
                 set_vars.append({'hosts': host,
                                  'tasks': [
                                      {'set_fact': {'allowed_port_list': open_ports}},
-                                 ], })
+                                 ] + host_dict.get('vars', []), })
                 if 'log_proxy' in host_dict.get('service', {}):
                     log_proxy_node = host
             if log_proxy_node:
@@ -347,12 +358,13 @@ class Orchestra(object):
 
 
 def main(options, unknown_options):
-    orchestra = Orchestra(options.deploy_filename)
     if options.command == 'ansible':
+        orchestra = Orchestra(options.deploy_filename)
         orchestra.ansible(unknown_options)
     elif options.command == 'fab':
-        pass
-    else:
+        subprocess.call(['fab', ] + unknown_options, cwd=SCRIPT_DIR)
+    elif options.command == 'compose':
+        orchestra = Orchestra(options.deploy_filename)
         orchestra.default_project.build()
         orchestra.start()
         try:
@@ -360,6 +372,11 @@ def main(options, unknown_options):
             orchestra.up()
         finally:
             orchestra.end()
+    elif options.command == 'debug':
+        orchestra = Orchestra(options.deploy_filename)
+        orchestra.debugDump()
+    else:
+        raise Exception('unknown command: "{}"'.format(options.command))
 
 
 def __entry_point():
@@ -369,6 +386,10 @@ def __entry_point():
     )
     parser.add_argument('deploy_filename')
     subparsers = parser.add_subparsers(help='sub-command help', title='subcommands')
+
+    debug_parser = subparsers.add_parser('debug', help='debug')
+    debug_parser.set_defaults(command='debug')
+
     ansible_parser = subparsers.add_parser('ansible', help='exec ansible')
     ansible_parser.set_defaults(command='ansible')
 
@@ -376,7 +397,7 @@ def __entry_point():
     fab_parser.set_defaults(command='fabric')
 
     compose_parser = subparsers.add_parser('compose', help='exec docker-compose')
-    compose_parser.set_defaults(command='docker-compose')
+    compose_parser.set_defaults(command='compose')
 
     main(*parser.parse_known_args())
 
