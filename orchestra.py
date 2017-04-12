@@ -6,15 +6,15 @@ import uuid
 import copy
 import os
 import yaml
-import json
+# import json
 import six
 from pprint import pprint
 import threading
 import subprocess
 
-from fabric.api import execute, hide
+# from fabric.api import execute, hide
 from fabric.state import env
-from fabric.utils import puts
+# from fabric.utils import puts
 
 from ansible.parsing.dataloader import DataLoader
 from ansible.vars import VariableManager
@@ -23,7 +23,7 @@ from ansible.inventory import Inventory
 from compose.cli import command
 from compose.config import config as dc_config
 
-import docker_tools
+# import docker_tools
 from docker_tools import over_ssh
 
 
@@ -346,38 +346,8 @@ class Orchestra(object):
                          var_tmp_filename, 'ansible/site.yml'] + args, cwd=SCRIPT_DIR)
 
 
-def load_settings(filename):
-    # resolveIp('subuntu0', 'subuntu1')
-    # return
-    orchestra = Orchestra(filename)
-    orchestra.default_project.build()
-    # def get_deps(proj, service):
-    #     return {
-    #         (proj.get_service(dep), config)
-    #         for dep, config in service.get_dependency_configs().items()
-    #     }
-    # for s in orchestra.default_project.get_services():
-    #     print '-' * 20, s
-    #     ss = get_deps(orchestra.default_project, s)
-    #     for d, c in ss:
-    #         print d, c(so)
-    # return
-    orchestra.debugDump()
-    orchestra.start()
-    try:
-        print "start finished!"
-        orchestra.push()
-        orchestra.up()
-    finally:
-        orchestra.end()
-    return
-
-
 def main(options, unknown_options):
-    # print options.deploy_filename
-    # print options, unknown_options
     orchestra = Orchestra(options.deploy_filename)
-    # orchestra.debugDump()
     if options.command == 'ansible':
         orchestra.ansible(unknown_options)
     elif options.command == 'fab':
@@ -402,14 +372,12 @@ def __entry_point():
     ansible_parser = subparsers.add_parser('ansible', help='exec ansible')
     ansible_parser.set_defaults(command='ansible')
 
-    # ansible_parser.add_argument('-K', '--ask-become-pass', default=False, action="store_true")
     fab_parser = subparsers.add_parser('fab', help='exec fabric')
     fab_parser.set_defaults(command='fabric')
 
     compose_parser = subparsers.add_parser('compose', help='exec docker-compose')
     compose_parser.set_defaults(command='docker-compose')
 
-    # compose_parser.add_argument('command', choices=['build', 'up'])
     main(*parser.parse_known_args())
 
 
