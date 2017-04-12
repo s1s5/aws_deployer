@@ -1,0 +1,24 @@
+- name: set ip forward
+  register: nat_instance
+  sysctl: name={{ item.name }} value={{ item.value }} ignoreerrors=yes sysctl_set=yes reload=yes state=present
+  with_items:
+    # パケット転送 OFF
+    - { name: "net.ipv4.ip_forward", value: 1 }
+
+- name: set ip tables
+  iptables:
+    table: nat
+    action: append
+    chain: POSTROUTING
+    source: 0.0.0.0/0
+    out_interface: eth0
+    jump: MASQUERADE
+
+- name: apt upgrade
+  apt: upgrade=dist update_cache=yes
+- name: install iptables-persistent
+  apt: name=iptables-persistent update_cache=yes state=installed
+- name: set iptables persistent
+  command: netfilter-persistent save # Ubuntu 16.04 Server
+  # sudo /etc/init.d/iptables-persistent save  # Ubuntu
+  changed_when: False

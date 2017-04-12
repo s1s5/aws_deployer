@@ -1,0 +1,198 @@
+---
+# from https://github.com/William-Yeh/ansible-fluentd
+
+- name: set tdagent_use_service = True, if not defined
+  set_fact:
+    tdagent_use_service: True
+  when: tdagent_use_service is not defined
+
+
+- name: install apt-related binaries for Ansible to work
+  apt: name={{ item }}  state=present update_cache=yes
+  with_items:
+    - python-software-properties
+    - apt-transport-https
+
+- name: add APT signing key for td-agent
+  apt_key: url=https://packages.treasuredata.com/GPG-KEY-td-agent state=present
+
+- name: add td-agent repository
+  apt_repository: repo='deb https://packages.treasuredata.com/2/{{ ansible_distribution|lower }}/{{ ansible_distribution_release|lower }}/ {{ ansible_distribution_release|lower }} contrib' state=present
+
+- name: install td-agent
+  apt: name=td-agent  update_cache=yes  state=present force=yes
+  when: tdagent_version is not defined
+
+- name: install td-agent
+  apt: name="td-agent={{ tdagent_version }}*"  update_cache=yes  state=present force=yes
+  when: tdagent_version is defined
+
+- name: install libcurl and make for compiling plugins
+  apt: name={{ item }}  state=present update_cache=yes
+  with_items:
+    - libcurl4-gnutls-dev
+    - build-essential
+  when: tdagent_plugins is defined or tdagent_plugins_versions is defined
+
+- name: set INIT status and start
+  service: name=td-agent state=started enabled=yes
+  when: tdagent_use_service|bool
+
+- name: set INIT status (SysV style)
+  shell: update-rc.d td-agent defaults
+  when: not tdagent_use_service|bool
+
+- name: chown /opt/td-agent
+  file:
+    path: /opt/td-agent
+    owner: td-agent
+    group: td-agent
+    recurse: yes
+
+- name: mkdir for conf.d
+  file:
+    path: /etc/td-agent/conf.d
+    state: directory
+    owner: td-agent
+    group: td-agent
+
+- name: rename default td-agent.conf
+  command: creates="/etc/td-agent/td-agent.conf.bak" mv /etc/td-agent/td-agent.conf /etc/td-agent/td-agent.conf.bak
+
+- name: "copy new td-agent.conf from role's default"
+  copy:
+    src: ../files/td-agent.conf
+    dest: /etc/td-agent/td-agent.conf
+    owner: td-agent
+    group: td-agent
+  when: tdagent_conf_copy is not defined and tdagent_conf_template is not defined
+  notify:
+    - reload td-agent
+
+- name: "copy new \"td-agent.conf\" verbatim from main playbook's"
+  copy:
+    src:  "{{ playbook_dir }}/{{ tdagent_conf_copy }}"
+    dest: /etc/td-agent/td-agent.conf
+    owner: td-agent
+    group: td-agent
+  when: tdagent_conf_copy is defined
+  notify:
+    - reload td-agent
+
+- name: "copy (from template) new \"td-agent.conf\" from main playbook's"
+  template:
+    src:  "{{ playbook_dir }}/{{ tdagent_conf_template }}"
+    dest: /etc/td-agent/td-agent.conf
+    owner: td-agent
+    group: td-agent
+  when: tdagent_conf_template is defined
+  notify:
+    - reload td-agent
+
+- name: "copy other config files from playbook's, if any"
+  template:
+    src:  "{{ playbook_dir }}/{{ item.value.src }}"
+    dest: "/etc/td-agent/conf.d/{{ item.value.dest }}"
+    owner: td-agent
+    group: td-agent
+  with_dict: '{{ tdagent_conf_others | default({}) }}'
+  notify:
+    - reload td-agent
+
+# GEM installed on:
+#   /opt/td-agent/embedded/lib/ruby/gems/2.1.0/gems/
+- name: install plugins, if any
+  gem:
+      name: "{{ item }}"
+      executable: /opt/td-agent/embedded/bin/fluent-gem
+      state: latest
+      user_install: no
+  with_items: "{{ tdagent_plugins | default([]) }}"
+  notify:
+    - restart td-agent
+
+
+- name: install plugins with specified versions, if any
+  gem:
+      name: "{{ item.value.name }}"
+      executable: /opt/td-agent/embedded/bin/fluent-gem
+      state: present
+      version: "{{ item.value.version }}"
+      user_install: no
+  with_dict: "{{ tdagent_plugins_versions | default({}) }}"
+  notify:
+    - restart td-agent
+
+- name: set pam limits for td-agent
+  pam_limits: domain=td-agent limit_type={{ item.type }} limit_item={{ item.item }} value={{ item.value }}
+  with_items:
+    - { type: "hard", item: "nofile", value: 65536 }
+    - { type: "soft", item: "nofile", value: 65536 }
+
+- name: network security settings
+  sysctl: name={{ item.name }} value={{ item.value }} ignoreerrors=yes sysctl_set=yes reload=yes state=present
+  with_items:
+    - { name: "net.ipv4.tcp_tw_recycle", value: 1}
+    - { name: "net.ipv4.tcp_tw_reuse", value: 1}
+    - { name: "net.ipv4.ip_local_port_range", value: "10240    65535"}
+
+- name: copy syslog conf
+  copy:
+    src:  syslog_fluentd.conf
+    dest: /etc/rsyslog.d/fluentd.conf
+    owner: root
+    group: root
+    mode: 0644
+  # handler restart rsyslog
+
+- name: copy syslog conf for fluentd
+  copy:
+    src:  30-syslog.conf
+    dest: /etc/td-agent/conf.d/30-syslog.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  notify:
+    - restart td-agent
+
+- name: copy logrotate conf for fluentd
+  copy:
+    src:  logrotate
+    dest: /etc/logrotate.d/td-agent
+    owner: root
+    group: root
+    mode: 0644
+  notify:
+    - restart td-agent
+
+- name: copy dstat conf for fluentd
+  copy:
+    src: 70-dstat.conf
+    dest: /etc/td-agent/conf.d/70-dstat.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  notify:
+    - restart td-agent
+
+- name: copy log forward
+  template:
+    src: 99-forward.conf
+    dest: /etc/td-agent/conf.d/99-forward.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  when: FLUENTD_LOG_AGGREGATOR_HOST is defined
+  notify:
+    - restart td-agent
+
+- name: copy log default
+  template:
+    src: 99-default.conf
+    dest: /etc/td-agent/conf.d/99-default.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  when: FLUENTD_LOG_AGGREGATOR_HOST is not defined
+  notify:
+    - restart td-agent

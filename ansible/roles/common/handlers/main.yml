@@ -1,0 +1,5 @@
+# - name: reboot
+#   command: /sbin/reboot now
+
+- name: service clamd restart
+  service: name=clamav-daemon state=restarted enabled=yes

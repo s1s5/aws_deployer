@@ -1,0 +1,56 @@
+- name: install docker
+  apt: name={{ item }} update_cache=yes  state=installed
+  with_items:
+    - docker.io
+    - lvm2
+
+- name: copy daemon.json
+  template: >
+    src=daemon.json.j2
+    dest=/etc/docker/daemon.json
+    owner=root
+    mode=0600
+
+- name: copy daemon.json
+  template: >
+    src=default_docker.j2
+    dest=/etc/default/docker
+    owner=root
+    mode=0600
+
+- name: check audit rules
+  lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/audit/audit.rules state=present
+  with_items:
+    - { re: "^-w /usr/bin/docker -p wa -k docker", line: "-w /usr/bin/docker -p wa -k docker" }
+    - { re: "^-w /var/lib/docker -p wa -k docker", line: "-w /var/lib/docker -p wa -k docker" }
+    - { re: "^-w /etc/docker -p wa -k docker", line: "-w /etc/docker -p wa -k docker" }
+    - { re: "^-w /lib/systemd/system/docker.service -p wa -k docker", line: "-w /lib/systemd/system/docker.service -p wa -k docker" }
+    - { re: "^-w /lib/systemd/system/docker.socket -p wa -k docker", line: "-w /lib/systemd/system/docker.socket -p wa -k docker" }
+    - { re: "^-w /etc/default/docker -p wa -k docker", line: "-w /etc/default/docker -p wa -k docker" }
+    - { re: "^-w /etc/docker/daemon.json -p wa -k docker", line: "-w /etc/docker/daemon.json -p wa -k docker" }
+
+- name: check audit rules
+  lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/profile insertafter=EOF state=present
+  with_items:
+    - { re: "^export DOCKER_CONTENT_TRUST=1", line: "export DOCKER_CONTENT_TRUST=1" }
+    
+- name: copy fluentd conf
+  copy:
+    src:  fluentd_30-docker.conf
+    dest: /etc/td-agent/conf.d/30-docker.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  notify:
+    - restart td-agent
+
+# # from https://github.com/spk83/ansible-docker-provision-thinpool
+# - name: check if the device has partition layout
+#   become: true
+#   become_user: root
+#   command: sfdisk -d {{docker_provision_thinpool_device_name}}
+#   register: partition_layout
+
+# - name: run tasks to provision thinpool
+# #  when: partition_layout.stdout == ""
+#   include: provision.yml

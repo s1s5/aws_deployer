@@ -6,8 +6,11 @@ import uuid
 import copy
 import os
 import yaml
+import json
+import six
 from pprint import pprint
 import threading
+import subprocess
 
 from fabric.api import execute, hide
 from fabric.state import env
@@ -26,6 +29,7 @@ from docker_tools import over_ssh
 
 env.forward_agent = True
 env.use_ssh_config = True
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def load_inventory(filename):
@@ -75,8 +79,21 @@ def debug_dump_inventory(inventory):
 
 def debug_dump_compose_project(project):
     for service in project.services:
-        print ' - ', service.name, service.image_name
+        print ' - ', service.name, service.image_name, '-' * 20
         pprint(service.config_dict())
+        # print 'exposed ports:', service.image().get('ExposedPorts', [])
+        # print(dir(service))
+        # pprint(service.options)
+        # number = None
+        # one_off = False
+        # override_options = {}
+        # container_options = service._get_container_create_options(
+        #     override_options,
+        #     number or service._next_container_number(one_off=one_off),
+        #     one_off=False,
+        #     previous_container=None,
+        # )
+        # pprint(container_options)
 
 
 def get_filename(base_dir, path):
@@ -148,20 +165,13 @@ class Orchestra(object):
             context = filedir
         self.filedir = filedir
         self.compose_context = context
-        self.inventory = self.getInventory()
+        self.hosts = self.conf_dict['hosts']
         project = load_compose_settings(
             self.compose_context, [get_filename(self.filedir, x) for x in self.conf_dict['compose_files']])
-        hs_map = {}
-        sh_map = {}
-        for service in project.services:
-            hosts = self.inventory.get_hosts(service.name)
-            sh_map[service.name] = [str(x) for x in hosts]
-            for h in hosts:
-                h = str(h)
-                l = hs_map.get(h, [])
-                l.append(service.name)
-                hs_map[h] = l
-        self.host_services_map, self.service_hosts_map = hs_map, sh_map
+
+        self.service_hosts_map = {
+            x.name: [y for y in self.hosts if x.name in self.hosts[y].get('services', {})]
+            for x in project.services}
 
         config_details = dc_config.find(self.filedir, [self.conf_dict['compose_files'][0]], None)
         config_data = dc_config.load(config_details)
@@ -209,9 +219,6 @@ class Orchestra(object):
         yaml.safe_dump(d, open(tmp_filename, 'wb'), encoding='utf-8', allow_unicode=True)
         self.conf_dict['compose_files'].append(tmp_filename)
 
-    def getInventory(self):
-        return load_inventory(get_filename(self.filedir, self.conf_dict['ansible_inventory']))
-
     def getProject(self, host=None):
         project = load_compose_settings(
             self.compose_context, [get_filename(self.filedir, x)
@@ -241,7 +248,7 @@ class Orchestra(object):
     def debugDump(self):
         print("---- input file ----")
         pprint(self.conf_dict)
-        debug_dump_inventory(self.inventory)
+        # debug_dump_inventory(self.inventory)
         debug_dump_compose_project(self.default_project)
 
     def updateDict(self, base, d):
@@ -261,11 +268,11 @@ class Orchestra(object):
             t = threading.Thread(target=self.build)
             t.start()
         self.proxy = over_ssh.DockerMultipleProxy(
-            [str(x) for x in self.host_services_map.keys()],
+            [str(x) for x in self.hosts],
             self.default_project.name, sleep_time=1)
         self.proxy.start()
         self.projects = {host: self.getProject(self.proxy.getSock(host))
-                         for host in self.host_services_map.keys()}
+                         for host in self.hosts}
         if build:
             t.join()
 
@@ -283,14 +290,16 @@ class Orchestra(object):
 
     def push(self):
         image_map = {}
-        for host, service_names in self.host_services_map.items():
+        for host in self.hosts:
+            service_names = self.hosts[host].get('services', {})
             services = self.default_project.get_services(service_names)
             image_map[host] = [(x.image_name, x.image_name) for x in services]
         self.proxy.push(image_map)
 
     def up(self):
         tl = []
-        for host, service_names in self.host_services_map.items():
+        for host in self.hosts:
+            service_names = self.hosts[host].get('services', {})
             project = self.projects[host]
             t = threading.Thread(
                 target=project.up,
@@ -302,6 +311,39 @@ class Orchestra(object):
             t.start()
             tl.append(t)
         [x.join() for x in tl]
+
+    def __extractPort(self, port):
+        return {'port': port.split(':')[0], 'proto': 'tcp'}
+
+    def ansible(self, args):
+        tmp_filename = os.path.join('/tmp/', '{}.yml'.format(uuid.uuid4().hex))
+        var_tmp_filename = os.path.join('/tmp/', '{}.yml'.format(uuid.uuid4().hex))
+        set_vars = []
+        with open(tmp_filename, 'w') as fp:
+            six.print_('[node]', file=fp)
+            log_proxy_node = None
+            for host, host_dict in self.hosts.items():
+                open_ports = []
+                for service_name in host_dict.get('services', {}):
+                    service = self.default_project.get_service(service_name)
+                    open_ports.extend([self.__extractPort(x) for x in service.options.get('ports', [])])
+                # six.print_('{} allowed_port_list=\'{}\''.format(host, json.dumps(open_ports)), file=fp)
+                six.print_(host, file=fp)
+                set_vars.append({'hosts': host,
+                                 'tasks': [
+                                     {'set_fact': {'allowed_port_list': open_ports}},
+                                 ], })
+                if 'log_proxy' in host_dict.get('service', {}):
+                    log_proxy_node = host
+            if log_proxy_node:
+                six.print_('[all:vars]', file=fp)
+                six.print_('FLUENTD_LOG_AGGREGATOR_NAME=proxy', file=fp)
+                six.print_('FLUENTD_LOG_AGGREGATOR_HOST={}'.format(log_proxy_node), file=fp)
+                six.print_('FLUENTD_LOG_AGGREGATOR_PORT=33815', file=fp)
+
+        yaml.safe_dump(set_vars, open(var_tmp_filename, 'wb'), encoding='utf-8', allow_unicode=True)
+        subprocess.call(['ansible-playbook', '-i', tmp_filename,
+                         var_tmp_filename, 'ansible/site.yml'] + args, cwd=SCRIPT_DIR)
 
 
 def load_settings(filename):
@@ -330,115 +372,24 @@ def load_settings(filename):
         orchestra.end()
     return
 
-    d = yaml.load(open(filename))
-    print("---- input file ----")
-    pprint(d)
-    filedir = os.path.abspath(os.path.dirname(filename))
-    if d.get('compose_context'):
-        if os.path.isabs(d['compose_context']):
-            context = d['compose_context']
-        else:
-            context = os.path.join(filedir, d['compose_context'])
+
+def main(options, unknown_options):
+    # print options.deploy_filename
+    # print options, unknown_options
+    orchestra = Orchestra(options.deploy_filename)
+    # orchestra.debugDump()
+    if options.command == 'ansible':
+        orchestra.ansible(unknown_options)
+    elif options.command == 'fab':
+        pass
     else:
-        context = filedir
-    inventory = load_inventory(get_filename(filedir, d['ansible_inventory']))
-
-    def _load_compose_settings(host=None):
-        return load_compose_settings(
-            context, [get_filename(filedir, x) for x in d['compose_files']], host=host)
-    project = _load_compose_settings()
-    project.build()
-
-    debug_dump_inventory(inventory)
-    debug_dump_compose_project(project)
-    # print dir(inventory)
-    # for i in inventory.get_groups():
-    #     print i, inventory.get_hosts(i)
-
-    services = project.get_services_without_duplicate(
-        None,
-        include_deps=True)
-    print [x.name for x in services]
-
-    # for service in project.services:
-    #     print "=" * 80
-    #     print service.name
-    #     print "-" * 40
-    #     pprint(service.options)
-    #     print "-" * 20
-    #     number = None
-    #     one_off = False
-    #     override_options = {}
-    #     container_options = service._get_container_create_options(
-    #         override_options,
-    #         number or service._next_container_number(one_off=one_off),
-    #         one_off=False,
-    #         previous_container=None,
-    #     )
-    #     pprint(container_options)
-    # return
-
-    host_task_map = {}
-    for group in inventory.get_groups():
-        for host in inventory.get_hosts(group):
-            host_task_map[host] = []
-
-    for service in project.services:
-        hosts = inventory.get_hosts(service.name)
-        print service.name, service.image_name, '=>', hosts
-        if not hosts:
-            continue
-        for host in hosts:
-            name = service.image_name  # .split(':')[0]
-            host_task_map[host].append(('push', [service.image_name, name], {}))
-            host_task_map[host].append(('compose_up', [], {
-                'service_names': [service.name],
-                'start_deps': False,
-                'detached': True}))
-
-    for host, commands in host_task_map.items():
-        if not commands:
-            continue
-
-        puts('{} {}'.format(host, commands))
-
-        def _run(proxy):
-            project = _load_compose_settings(proxy.sock)
-            for cmd, args, kwargs in commands:
-                puts('{} {} {}'.format(cmd, args, kwargs))
-                if cmd == 'push':
-                    proxy.push(*args)
-                elif cmd == 'compose_up':
-                    project.up(*args, **kwargs)
-                else:
-                    raise Exception('unknown cmd={}, args={}, kwargs={}'.format(cmd, args, kwargs))
-            import time
-            time.sleep(10)
-
-        execute(docker_tools.execute, _run,
-                hosts=[str(host)])
-
-    # print dir(project)
-    # links = []
-    # for service in project.services:
-    #     hosts = inventory.get_hosts(service.name)
-    #     print service.name, service.image_name, '=>', hosts
-    #     from pprint import pprint
-    #     run_kwargs = extract_run_arguments(
-    #         project.name, service.name, service.config_dict(), d.get('host_aliases', dict()))
-    #     pprint(service.config_dict())
-    #     pprint(run_kwargs)
-    #     if not hosts:
-    #         continue
-    #     for host in hosts:
-    #         name = service.image_name.split(':')[0]
-    #         execute(docker_tools.run, service.image_name.split(':')[0],
-    #                 hosts=[str(host)], links=links, **run_kwargs)
-    #     links.append((run_kwargs['name'], run_kwargs['hostname']))
-
-
-def main(args):
-    load_settings(args[0])
+        orchestra.default_project.build()
+        orchestra.start()
+        try:
+            orchestra.push()
+            orchestra.up()
+        finally:
+            orchestra.end()
 
 
 def __entry_point():
@@ -446,8 +397,20 @@ def __entry_point():
     parser = argparse.ArgumentParser(
         description=u'',  # プログラムの説明
     )
-    parser.add_argument("args", nargs="*")
-    main(parser.parse_args().args)
+    parser.add_argument('deploy_filename')
+    subparsers = parser.add_subparsers(help='sub-command help', title='subcommands')
+    ansible_parser = subparsers.add_parser('ansible', help='exec ansible')
+    ansible_parser.set_defaults(command='ansible')
+
+    # ansible_parser.add_argument('-K', '--ask-become-pass', default=False, action="store_true")
+    fab_parser = subparsers.add_parser('fab', help='exec fabric')
+    fab_parser.set_defaults(command='fabric')
+
+    compose_parser = subparsers.add_parser('compose', help='exec docker-compose')
+    compose_parser.set_defaults(command='docker-compose')
+
+    # compose_parser.add_argument('command', choices=['build', 'up'])
+    main(*parser.parse_known_args())
 
 
 if __name__ == '__main__':

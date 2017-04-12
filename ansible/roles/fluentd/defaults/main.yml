@@ -1,0 +1,6 @@
+tdagent_plugins:
+  - fluent-plugin-dstat
+  - fluent-plugin-rewrite-tag-filter
+  - fluent-plugin-parser
+
+tdagent_version: 2.3  # v0.12

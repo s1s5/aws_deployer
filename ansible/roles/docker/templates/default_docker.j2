@@ -1,0 +1,2 @@
+DOCKER_OPTS='--icc=false --disable-legacy-registry=true --userns-remap=default --debug=false --log-level=info --log-driver=fluentd --log-opt fluentd-address=127.0.0.1:26226 --log-opt tag="{{ 'docker.{{.Name}}' }}" --storage-driver=overlay2 --userland-proxy=false'
+

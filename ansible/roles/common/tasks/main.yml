@@ -1,0 +1,287 @@
+- name: apt upgrade
+  apt: upgrade=dist update_cache=yes
+# - name: check reboot required
+#   shell: if [[ $(readlink -f /vmlinuz) != /boot/vmlinuz-$(uname -r) ]]; then echo "reboot required"; else echo "no"; fi
+#   register: reboot_required
+#   changed_when: False
+# - name: reboot
+#   when: reboot_required is defined and reboot_required.stdout.find("required") != -1
+#   command: /sbin/reboot now
+- name: wait for waking up
+  when: reboot_required is defined and reboot_required.stdout.find("required") != -1
+  local_action: wait_for host={{ inventory_hostname }} search_regex=OpenSSH port=22 timeout=90
+- name: secure shared memory
+  mount: name="/dev/shm" src="none" fstype="tmpfs" opts="nodev,noexec,nosuid" state=mounted
+- name: invalidate core dump
+  lineinfile: dest=/etc/security/limits.conf line="* hard core 0" state=present
+- name: check prelink
+  stat: path=/usr/sbin/prelink follow=True
+  register: prelink_bin_path
+- name: remove prelink
+  when: prelink_bin_path is defined and prelink_bin_path.stat.exists
+  command: /usr/sbin/prelink -ua
+
+- name: install packages for security
+  apt: name={{ item }} update_cache=yes  state=installed
+  with_items:
+    - libpam-cracklib
+    # - libpam-sss
+    - libpam-pwquality
+    - aptitude
+    - apparmor
+    - apparmor-utils
+    - apparmor-profiles
+    - fail2ban
+    - tcpd
+    - auditd
+    - aide
+    - openssh-server
+    - ntp
+    - psad
+    - rkhunter
+    - logwatch
+    - libdate-manip-perl
+    - socat
+    - clamav
+    - clamdscan
+    - clamav-daemon
+    - dstat
+
+- name: set permissions
+  file: path={{ item.path }} owner=root group=root mode={{ item.mode }} state={{ item.state }}
+  changed_when: False
+  with_items:
+    - { path: "/etc/cron.allow", mode: "0600", state: "touch" }
+    - { path: "/etc/at.allow", mode: "0600", state: "touch" }
+
+- name: set permissions
+  file: path={{ item.path }} owner=root group=root mode={{ item.mode }} state={{ item.state }}
+  with_items:
+    - { path: "/etc/crontab", mode: "0600", state: "file" }
+    - { path: "/etc/cron.deny", mode: "0600", state: "absent" }
+    - { path: "/etc/at.deny", mode: "0600", state: "absent" }
+    - { path: "/etc/cron.allow", mode: "0600", state: "file" }
+    - { path: "/etc/at.allow", mode: "0600", state: "file" }
+    - { path: "/etc/ssh/sshd_config", mode: "0600", state: "file" }
+    - { path: "/etc/passwd", mode: "0644", state: "file" }
+    - { path: "/etc/shadow", mode: "0600", state: "file" }
+    - { path: "/etc/group", mode: "0644", state: "file" }
+    - { path: "/etc/hosts.allow", mode: "0644", state: "file" }
+    - { path: "/etc/hosts.deny", mode: "0644", state: "file" }
+    - { path: "/var/log/audit/audit.log", mode: "0600", state: "file"}
+          
+- name: set permissions
+  file: path={{ item.path }} owner=root group=root mode={{ item.mode }} state={{ item.state }} recurse=yes
+  with_items:
+    - { path: "/etc/cron.hourly", mode: "0700", state: "directory" }
+    - { path: "/etc/cron.daily", mode: "0700", state: "directory" }
+    - { path: "/etc/cron.weekly", mode: "0700", state: "directory" }
+    - { path: "/etc/cron.monthly", mode: "0700", state: "directory" }
+    - { path: "/etc/cron.d", mode: "0700", state: "directory" }
+
+- name: security packages must be run
+  service: name={{ item }} state=started enabled=yes
+  with_items:
+    - ntp
+    - ufw
+    - auditd
+    - cron
+
+- name: remove unfavorable packages
+  apt: name={{ item }} purge=yes state=absent
+  with_items:
+    - prelink
+    - nis
+    - talk
+    - ntalk
+    - rsh-client
+    - rsh-reload-client
+    - "xserver-xorg-core*"
+    - slapd
+    - biosdevname
+
+- name: stop unfavorable services
+  service: name={{ item }} state=stopped enabled=no
+  failed_when: False
+  with_items:
+    - avahi-daemon
+    - xinetd
+    - cups
+    - isc-dhcp-server
+    - isc-dhcp-server6
+    - rpcbind
+    - bind
+    - vsftpd
+    - apache2
+    - dovecot
+    - smbd
+    - squid3
+    - snmpd
+
+- name: block update ntp 
+  lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/ntp.conf insertafter=EOF state=present
+  with_items:
+    - { re: "^restrict -4", line: "restrict -4 default kod nomodify notrap nopeer noquery" }
+    - { re: "^restrict -6", line: "restrict -6 default kod nomodify notrap nopeer noquery" }
+
+- name: set timezone to Asia/Tokyo
+  timezone:
+    name: Asia/Tokyo
+
+- name: network security settings
+  sysctl: name={{ item.name }} value={{ item.value }} ignoreerrors=yes sysctl_set=yes reload=yes state=present
+  with_items:
+    # IP Spoofing protection
+    - { name: "net.ipv4.conf.all.rp_filter", value: 1 }
+
+    # Ignore ICMP broadcast requests
+    - { name: "net.ipv4.icmp_echo_ignore_broadcasts", value: 1 }
+    - { name: "net.ipv4.icmp_ignore_bogus_error_responses", value: 1 }
+
+    # Disable source packet routing
+    - { name: "net.ipv4.conf.all.accept_source_route", value: 0 }
+    - { name: "net.ipv4.conf.default.accept_source_route", value: 0 }
+    - { name: "net.ipv6.conf.all.accept_source_route", value: 0 }
+    - { name: "net.ipv6.conf.default.accept_source_route", value: 0 }
+
+    # Ignore send redirects
+    - { name: "net.ipv4.conf.all.send_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.send_redirects", value: 0 }
+    
+    # Block SYN attacks
+    - { name: "net.ipv4.tcp_syncookies", value: 1}
+    - { name: "net.ipv4.tcp_max_syn_backlog", value: 2048}
+    - { name: "net.ipv4.tcp_synack_retries", value: 2}
+    - { name: "net.ipv4.tcp_syn_retries", value: 5}
+
+    # Log Martians
+    - { name: "net.ipv4.conf.all.log_martians", value: 1 }
+    - { name: "net.ipv4.conf.default.log_martians", value: 1 }
+
+    # Ignore ICMP redirects
+    - { name: "net.ipv4.conf.all.accept_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.accept_redirects", value: 0 }
+    - { name: "net.ipv4.conf.all.secure_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.secure_redirects", value: 0 }
+    - { name: "net.ipv4.conf.default.rp_filter", value: 1 }
+    - { name: "net.ipv6.conf.all.accept_redirects", value: 0 }
+    - { name: "net.ipv6.conf.default.accept_redirects", value: 0 }
+
+    # Ignore Directed pings
+    - { name: "net.ipv4.icmp_echo_ignore_all", value: 1}
+
+    # IPv6の無効化
+    - { name: "net.ipv6.conf.all.disable_ipv6", value: 1 }
+    - { name: "net.ipv6.conf.default.disable_ipv6", value: 1 }
+    - { name: "net.ipv6.conf.lo.disable_ipv6", value: 1 }
+
+# - name: network security settings
+#   sysctl: name={{ item.name }} value={{ item.value }} ignoreerrors=yes sysctl_set=yes reload=yes state=present
+#   when: nat_instance is undefined and not nat_instance
+#   with_items:
+#     # パケット転送 OFF
+#     - { name: "net.ipv4.ip_forward", value: 0 }
+
+- name: security settings, forbid core dumps, use random vm
+  sysctl: name={{ item.name }} value={{ item.value }} ignoreerrors=yes sysctl_set=yes reload=yes state=present
+  with_items:
+    # ユーザIDを変更するプログラムのcoreダンプ
+    - { name: "fs.suid_dumpable", value: 0 }
+
+    # use randomized vertial memory space
+    - { name: "kernel.randomize_va_space", value: 2 }
+
+    - { name: "fs.protected_hardlinks", value: 1 }
+    - { name: "fs.protected_symlinks", value: 1 }
+
+- name: check auditd conf
+  lineinfile: dest="/etc/audit/auditd.conf" regexp={{ item.regex }} line={{ item.line }} state=present
+  with_items:
+    - { regex: "^space_left_action", line: "space_left_action = email" }
+    - { regex: "^action_mail_acct", line: "action_mail_acct = root" }
+    - { regex: "^admin_space_left_action", line: "admin_space_left_action = halt" }
+    - { regex: "^max_log_file_action", line: "max_log_file_action = keep_logs" }
+
+- name: copy audit.rules
+  copy:
+    src: audit.rules
+    dest: /etc/audit/audit.rules
+    owner: root
+    mode: 0600
+
+- name: send audit log to syslog
+  replace: dest=/etc/audisp/plugins.d/syslog.conf regexp='^active = no$' replace='active = yes' backup=yes
+# handler service auditd restart
+
+- name: replace nsswitch
+  replace: "dest=/etc/nsswitch.conf regexp='^sudoers:[ \t]*files[ \t]+sss$' replace='sudoers:        files' backup=yes"
+
+- name: send aide log to syslog
+  lineinfile: dest="/etc/aide/aide.conf" regexp={{ item.regex }} line={{ item.line }} state=present insertafter=EOF
+  with_items:
+    - { regex: "^report_url = syslog:LOG_AUTH", line: "report_url = syslog:LOG_AUTH" }
+
+- name: clamd config
+  lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/clamav/clamd.conf insertafter=EOF state=present
+  with_items:
+    - { re: "^ExcludePath ./boot/", line: "ExcludePath ^/boot/" }
+    - { re: "^ExcludePath ./proc/", line: "ExcludePath ^/proc/" }
+    - { re: "^ExcludePath ./sys/", line: "ExcludePath ^/sys/" }
+    # - { re: "^ExcludePath ./var/", line: "ExcludePath ^/var/" }
+    # - { re: "^ExcludePath ./etc/", line: "ExcludePath ^/etc/" }
+  notify: service clamd restart
+
+# Allow all access to tcp port 80:
+- name: allow ssh
+  ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+
+- name: allow ports
+  ufw: rule=allow port={{ item.port }} proto={{ item.proto }}
+  with_items: "{{ allowed_port_list }}"
+
+- name: allow docker ips. allow containers to talk to each other through exposed ports on the main server
+  ufw: rule=allow src=172.17.0.0/16
+
+# - name: allow containers to talk to each other directly
+#   ufw: rule=allow route=yes src=172.17.0.0/16
+
+# # iptables -t nat -A POSTROUTING ! -o docker0 -s 172.17.0.0/16 -j MASQUERADE # allow outbound connections to the internet from containers
+
+# - ufw: rule=allow route=yes src=10.0.0.0/16
+#   when: nat_instance is defined and nat_instance
+
+- name: allow route packet for nat_instance
+  ufw: rule=allow route=yes
+  when: nat_instance is defined and nat_instance
+
+- name: Set firewall default policy
+  ufw: state=enabled policy=reject
+#   when: nat_instance is undefined and not nat_instance
+
+# - name: Set firewall default policy
+#   ufw: state=enabled policy=allow
+#   when: nat_instance is defined and nat_instance
+
+- name: set hostname
+  hostname: name="{{ inventory_hostname }}"
+
+- name: generate /etc/hosts
+  template:
+    src: etc_hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: 0644
+
+
+# - name: restart machine
+#   command: sleep 2 && shutdown -r now "Ansible updates triggered"
+#   async: 1
+#   poll: 0
+#   ignore_errors: true
+
+# - name: waiting for server to come back
+#   local_action: wait_for host={{ inventory_hostname }} state=started delay=30 timeout=300
