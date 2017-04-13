@@ -171,7 +171,8 @@ class DockerTunnel(object):
             'remote_host': self.hostname,
             'crt': tmp_file,
         }
-        sudo("true")
+        with hide('running', 'stdout'):
+            sudo("true")
         # print env
 
         def _local_listen(**kw):
@@ -257,7 +258,8 @@ class DockerTunnel(object):
         if os.path.exists(self.sock):
             os.remove(self.sock)
 
-        ret = subprocess.check_output(['ssh', self.hostname, 'ps', 'aux'])
+        ret = subprocess.check_output(['ssh', self.hostname, 'ps', 'aux'],
+                                      stderr=subprocess.PIPE)
         # print type(ret)
         ret = ret.decode('UTF-8')
         for line in ret.splitlines():
@@ -416,7 +418,9 @@ class DockerMultipleProxy(object):
 
     def __exit__(self, type_, value, traceback):
         [x.__exit__(type_, value, traceback) for x in self.rev_tunnels]
-        [x.__exit__(type_, value, traceback) for x in self.docker_tunnels]
+        for dt in self.docker_tunnels:
+            env.host_string = dt.hostname
+            dt.__exit__(type_, value, traceback)
         self.reg.__exit__(type_, value, traceback)
         self.reg = None
         self.dt = None
