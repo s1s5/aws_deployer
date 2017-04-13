@@ -186,6 +186,12 @@
   notify:
     - restart td-agent
 
+- name: remove 99-default.conf
+  file: path=/etc/td-agent/conf.d/99-default.conf state=absent
+  when: FLUENTD_LOG_AGGREGATOR_HOST is defined
+  notify:
+    - restart td-agent
+
 - name: copy log default
   template:
     src: 99-default.conf
@@ -193,6 +199,12 @@
     owner: td-agent
     group: td-agent
     mode: 0644
+  when: FLUENTD_LOG_AGGREGATOR_HOST is not defined
+  notify:
+    - restart td-agent
+
+- name: remove 99-forward.conf
+  file: path=/etc/td-agent/conf.d/99-forward.conf state=absent
   when: FLUENTD_LOG_AGGREGATOR_HOST is not defined
   notify:
     - restart td-agent

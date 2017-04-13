@@ -189,7 +189,7 @@ class Orchestra(object):
         all_override['environment'] = l
         all_services = {}
         for service in project.services:
-            all_services[service.name] = all_override
+            all_services[service.name] = copy.deepcopy(all_override)
         self.addConfig(config_data, all_services)
         project = load_compose_settings(
             self.compose_context, [get_filename(self.filedir, x) for x in self.conf_dict['compose_files']])
@@ -344,15 +344,20 @@ class Orchestra(object):
                                  'tasks': [
                                      {'set_fact': {'allowed_port_list': open_ports}},
                                  ] + host_dict.get('vars', []), })
-                if 'log_proxy' in host_dict.get('service', {}):
+                if 'log_proxy' in host_dict.get('services', {}):
                     log_proxy_node = host
+            six.print_('[all:vars]', file=fp)
+            six.print_('ansible_python_interpreter=/usr/bin/python2.7', file=fp)
             if log_proxy_node:
-                six.print_('[all:vars]', file=fp)
                 six.print_('FLUENTD_LOG_AGGREGATOR_NAME=proxy', file=fp)
                 six.print_('FLUENTD_LOG_AGGREGATOR_HOST={}'.format(log_proxy_node), file=fp)
                 six.print_('FLUENTD_LOG_AGGREGATOR_PORT=33815', file=fp)
 
         yaml.safe_dump(set_vars, open(var_tmp_filename, 'wb'), encoding='utf-8', allow_unicode=True)
+        print "-" * 10, "inventory file", "-" * 10
+        print open(tmp_filename).read()
+        print "-" * 10, "set varialbe file", "-" * 10
+        print open(var_tmp_filename).read()
         subprocess.call(['ansible-playbook', '-i', tmp_filename,
                          var_tmp_filename, 'ansible/site.yml'] + args, cwd=SCRIPT_DIR)
 

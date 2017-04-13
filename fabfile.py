@@ -117,12 +117,12 @@ def setup_nat_instance():
 
 
 @task
-def create_swap():
+def create_swap(size='1G'):
     """swapファイルの作成"""
     if exists('/swapfile'):
         puts('failed to create /swapfile')
         return
-    sudo('fallocate -l 1G /swapfile')
+    sudo('fallocate -l {} /swapfile'.format(size))
     sudo('chmod 600 /swapfile')
     sudo('mkswap /swapfile')
     sudo('swapon /swapfile')

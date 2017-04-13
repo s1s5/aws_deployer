@@ -10,6 +10,8 @@
     dest=/etc/docker/daemon.json
     owner=root
     mode=0600
+  notify:
+    - restart docker
 
 - name: copy daemon.json
   template: >
@@ -17,6 +19,8 @@
     dest=/etc/default/docker
     owner=root
     mode=0600
+  notify:
+    - restart docker
 
 - name: check audit rules
   lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/audit/audit.rules state=present
