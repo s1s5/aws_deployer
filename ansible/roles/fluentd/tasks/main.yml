@@ -175,6 +175,27 @@
   notify:
     - restart td-agent
 
+- name: create directory stat tools
+  file: path=/opt/stat_tools/ state=directory owner=td-agent group=td-agent mode=0755
+
+- name: copy stat tools
+  copy:
+    src: disk_stat.py
+    dest: /opt/stat_tools/disk_stat.py
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+
+- name: copy dstat conf for fluentd
+  copy:
+    src: 70-pystat.conf
+    dest: /etc/td-agent/conf.d/70-pystat.conf
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+  notify:
+    - restart td-agent
+
 - name: copy log forward
   template:
     src: 99-forward.conf
