@@ -40,11 +40,23 @@ def create_rc_file(proxy, hosts, fp):
     else:
         common = search_commons(hosts)
         print_(r'export PS1="(rdocker) $PS1"', file=fp)
-        for host in hosts:
+        for index, host in enumerate(hosts):
             print_("alias docker_{}='docker -H {}'".format(host[len(common):], proxy.getSock(host)), file=fp)
             print_("alias d{}='docker -H {}'".format(host[len(common):], proxy.getSock(host)), file=fp)
-            print_('docker_{}(d{}) -> [{}]'.format(host[len(common):], host[len(common):], host))
-        print_('''''')
+            print_('[{}] docker_{}(d{}) -> [{}]'.format(index, host[len(common):], host[len(common):], host))
+        print_('function sw () {', file=fp)
+        print_('    case $1 in', file=fp)
+        for index, host in enumerate(hosts):
+            sock = proxy.getSock(host)
+            ps1 = 'export PS1="(->{})$ORG_PS1"'.format(host)
+            print_('        {}) export DOCKER_HOST="{}"'.format(index, sock), file=fp)
+            print_('            {} ;;'.format(ps1), file=fp)
+            print_('        {}) export DOCKER_HOST="{}"'.format(host[len(common):], sock), file=fp)
+            print_('            {} ;;'.format(ps1), file=fp)
+            print_('        {}) export DOCKER_HOST="{}"'.format(host, sock), file=fp)
+            print_('            {} ;;'.format(ps1), file=fp)
+        print_('            esac', file=fp)
+        print_('}', file=fp)
 
 
 def main(args):
