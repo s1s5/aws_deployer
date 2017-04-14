@@ -14,6 +14,7 @@ for i in subprocess.check_output(['df', '-k']).splitlines()[1:]:
         if i[-1] in paths:
             result['{}:total'.format(i[-1])] = int(i[1])
             result['{}:used'.format(i[-1])] = int(i[2])
+            result['{}:use%'.format(i[-1])] = float(i[2]) / int(i[1])
     except:
         pass
 result['timestamp'] = time.time()
