@@ -343,7 +343,7 @@ class Orchestra(object):
                 set_vars.append({'hosts': host,
                                  'tasks': [
                                      {'set_fact': {'allowed_port_list': open_ports}},
-                                 ] + host_dict.get('vars', []), })
+                                 ] + [{'set_fact': x} for x in host_dict.get('vars', [])], })
                 if 'log_proxy' in host_dict.get('services', {}):
                     log_proxy_node = host
             six.print_('[all:vars]', file=fp)
@@ -366,9 +366,14 @@ def main(options, unknown_options):
     if options.command == 'ansible':
         orchestra = Orchestra(options.deploy_filename)
         orchestra.ansible(unknown_options)
-    elif options.command == 'fab':
-        subprocess.call(['fab', ] + unknown_options, cwd=SCRIPT_DIR)
+    elif options.command == 'fabric':
+        conf_dict = yaml.load(open(options.deploy_filename))
+        subprocess.call(
+            ['fab', '-H', ','.join(conf_dict['hosts'].keys())] + unknown_options, cwd=SCRIPT_DIR)
     elif options.command == 'compose':
+        import logging
+        logging.basicConfig(level=logging.WARN)
+
         orchestra = Orchestra(options.deploy_filename)
         orchestra.default_project.build()
         orchestra.start()

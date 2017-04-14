@@ -8,7 +8,7 @@ import os
 from fabric.decorators import task
 from fabric.state import env
 from fabric.utils import puts
-from fabric.api import local, sudo
+from fabric.api import local, sudo, warn_only
 
 from . import over_ssh
 from .over_ssh import create_tls_cert  # NOQA
@@ -62,11 +62,15 @@ def ps(*args, **kw):
 
 
 @task
-def clear_images():
+def clear_images(force=False):
     """clear all images"""
-    sudo('docker stop `sudo docker ps -q`')
-    sudo('docker rm -f `sudo docker ps -aq`')
-    sudo('docker rmi -f `sudo docker images -aq`')
+    force_flag = ''
+    if force:
+        sudo('docker stop `sudo docker ps -q`')
+        force_flag = '-f '
+    with warn_only():
+        sudo('docker rm {}`sudo docker ps -aq`'.format(force_flag))
+        sudo('docker rmi {}`sudo docker images -aq`'.format(force_flag))
 
 
 @task
