@@ -241,6 +241,7 @@
 - name: allow ports
   ufw: rule=allow port={{ item.port }} proto={{ item.proto }}
   with_items: "{{ allowed_port_list }}"
+  when: allowed_port_list is defined
 
 - name: allow docker ips. allow containers to talk to each other through exposed ports on the main server
   ufw: rule=allow src=172.17.0.0/16
@@ -276,6 +277,12 @@
     group: root
     mode: 0644
 
+- name: set postfix localonly
+  replace: dest=/etc/postfix/main.cf regexp='^\s*inet_interfaces\s*=.*' replace='inet_interfaces = loopback-only' backup=yes
+
+- name: set postfix started
+  service: name=postfix state=started enabled=yes
+  
 
 # - name: restart machine
 #   command: sleep 2 && shutdown -r now "Ansible updates triggered"

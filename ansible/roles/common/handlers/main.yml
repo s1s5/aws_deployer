@@ -3,3 +3,6 @@
 
 - name: service clamd restart
   service: name=clamav-daemon state=restarted enabled=yes
+
+- name: restart postfix
+  service: name=postfix state=restarted

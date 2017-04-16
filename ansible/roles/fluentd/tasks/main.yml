@@ -196,6 +196,24 @@
   notify:
     - restart td-agent
 
+- name: copy get_mail
+  copy:
+    src: get_mail.py
+    dest: /opt/stat_tools/get_mail.py
+    owner: td-agent
+    group: td-agent
+    mode: 0644
+
+- name: copy .forward
+  copy:
+    src: root_forward
+    dest: /root/.forward
+    owner: root
+    group: root
+    mode: 0600
+  notify:
+    - restart postfix
+
 - name: copy log forward
   template:
     src: 99-forward.conf
