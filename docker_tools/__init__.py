@@ -23,7 +23,7 @@ def sock(sock_name=None):
         sock_name = '{}.sock'.format(env['host_string'])
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd()), sock_name=sock_name) as proxy:
+            'deployer', sock_name=sock_name) as proxy:
         puts('created socket={}, registry={}'.format(proxy.sock, proxy.local_registry))
         puts(' - remoteのdockerサーバでコマンド実行')
         puts('docker -H {} images'.format(proxy.sock))
@@ -56,7 +56,7 @@ def ps(*args, **kw):
     """ps """
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd())) as proxy:
+            'deployer') as proxy:
         for container in proxy.remote_client.containers.list():
             print container
 
@@ -78,7 +78,7 @@ def images(*args, **kw):
     """images """
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd())) as proxy:
+            'deployer') as proxy:
         for image in proxy.remote_client.images.list():
             print image
 
@@ -88,7 +88,7 @@ def run(image_name, *args, **kw):
     """run:<image_name> """
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd())) as proxy:
+            'deployer') as proxy:
         image = proxy.remote_client.images.get(image_name)
         proxy.remote_client.containers.run(image, *args, **kw)
 
@@ -98,7 +98,7 @@ def push(image, tag):
     """push:<image_name>,<image_tag> """
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd())) as proxy:
+            'deployer') as proxy:
         proxy.push(image, tag)
 
 
@@ -106,7 +106,7 @@ def push(image, tag):
 def execute(*functions):
     with over_ssh.DockerProxy(
             env['host_string'],
-            os.path.basename(os.getcwd())) as proxy:
+            'deployer') as proxy:
         for func in functions:
             func(proxy)
 
@@ -115,4 +115,4 @@ def execute(*functions):
 def get_proxy():
     return over_ssh.DockerProxy(
         env['host_string'],
-        os.path.basename(os.getcwd()))
+        'deployer')

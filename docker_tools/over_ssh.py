@@ -72,6 +72,7 @@ class DockerRegistry(object):
         self.plist = []
         self.project_name = project_name
         self.port = port
+        puts('docker registrey: project_name={}'.format(self.project_name))
 
     def __enter__(self):
         if self.port <= 0:
@@ -82,7 +83,8 @@ class DockerRegistry(object):
         environment = {
         }
         volumes = {
-            '{}_docker_registry'.format(self.project_name): {'type': 'bind', 'bind': '/var/lib/registry', 'mode': 'rw'},
+            '{}_docker_registry'.format(self.project_name): {
+                'type': 'bind', 'bind': '/var/lib/registry', 'mode': 'rw'},
         }
         for volume in volumes:
             try:
@@ -447,7 +449,7 @@ class DockerMultipleProxy(object):
             remote_image = remote_client.images.get(tag)
             if image.id == remote_image.id:
                 # self.__append_tag(remote_image, tag)
-                puts('image ids are same skipped {} {}'.format(tag, image.id))
+                puts('push skipped {} {}'.format(tag, image.id))
                 return
             remote_client.images.remove(tag.split(':')[0])
         except docker.errors.APIError:

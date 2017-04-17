@@ -303,7 +303,8 @@ class Orchestra(object):
         for host in self.hosts:
             service_names = self.hosts[host].get('services', {})
             services = self.default_project.get_services(service_names)
-            image_map[host] = [(x.image_name, x.image_name) for x in services]
+            image_map[host] = [(x.build() if x.can_be_built() else x.image_name, x.image_name)
+                               for x in services]
         self.proxy.push(image_map)
 
     def up(self):
@@ -375,7 +376,7 @@ def main(options, unknown_options):
         logging.basicConfig(level=logging.WARN)
 
         orchestra = Orchestra(options.deploy_filename)
-        orchestra.default_project.build()
+        # orchestra.default_project.build()
         orchestra.start()
         try:
             orchestra.push()
