@@ -1,0 +1,10 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+source `which virtualenvwrapper.sh`
+workon deployer
+
+# set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
+script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+python ${script_dir}/../orchestra.py $*
+deactivate
