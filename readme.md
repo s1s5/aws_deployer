@@ -53,9 +53,24 @@ $ wfab -H <host alias> user_del:ubuntu
 ```
 
 ## OSのいろいろな設定を行っておく
-
+- ネットワーク周りの設定、不要なサービスのアンインストール
+- fluentd、dockerのインストール
+- ※AIDE, PSADがまだちゃんと動いていなさそう。。
 ```
 # deployerのディレクトリに移動
-# <new-host>にホスト名を入れる。かならず「,」を最後にいれる。複数の場合は、「ubuntu0,ubuntu1」みたいな感じ
+# <new-host>にホスト名を入れる。一個のホストの場合はかならず「,」を最後にいれる。
 $ ansible-playbook -i <new-host>, ansible/site.yml 
 ```
+
+# rdocker
+## single host
+``` shell
+$ python rdocker <host>
+# /var/run/docker.sockをトンネルしてローカルに持ってくる
+(-> <host>) $ docker ps # <= リモートのdockerに接続!
+```
+
+
+
+
+# orche

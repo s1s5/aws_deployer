@@ -72,7 +72,7 @@ class DockerRegistry(object):
         self.plist = []
         self.project_name = project_name
         self.port = port
-        puts('docker registrey: project_name={}'.format(self.project_name))
+        # puts('docker registrey: project_name={}'.format(self.project_name))
 
     def __enter__(self):
         if self.port <= 0:
