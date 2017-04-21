@@ -24,8 +24,7 @@ wfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** setup_aws_ec2:`whoami`
 1. ユーザーの追加を行う
 2. id_rsaの生成
 3. authorized_keysに追加
-4. sudoersにそのユーザーを追加
-5. ubuntuユーザーの削除
+4. sudoersにそのユーザーを追加(adminグループに追加)
 
 ### 実行後
 #### ログででてきたものを~/.ssh/configに以下を追加
@@ -56,5 +55,7 @@ $ wfab -H <host alias> user_del:ubuntu
 ## OSのいろいろな設定を行っておく
 
 ```
-$ 
+# deployerのディレクトリに移動
+# <new-host>にホスト名を入れる。かならず「,」を最後にいれる。複数の場合は、「ubuntu0,ubuntu1」みたいな感じ
+$ ansible-playbook -i <new-host>, ansible/site.yml 
 ```
