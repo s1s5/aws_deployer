@@ -117,14 +117,14 @@ def setup_nat_instance():
 
 
 @task
-def create_swap(size='1G'):
+def create_swap(size='1G', filename='/swapfile'):
     """swapファイルの作成"""
-    if exists('/swapfile'):
-        puts('failed to create /swapfile')
+    if exists(filename):
+        puts('failed to create {}'.format(filename))
         return
-    sudo('fallocate -l {} /swapfile'.format(size))
-    sudo('chmod 600 /swapfile')
-    sudo('mkswap /swapfile')
-    sudo('swapon /swapfile')
-    # add "/swapfile none swap sw 0 0"
-    append('/etc/fstab', "/swapfile none swap sw 0 0", use_sudo=True)
+    sudo('fallocate -l {} {}'.format(size, filename))
+    sudo('chmod 600 {}'.format(filename))
+    sudo('mkswap {}'.format(filename))
+    sudo('swapon {}'.format(filename))
+    # add "{} none swap sw 0 0"
+    append('/etc/fstab', "{} none swap sw 0 0".format(filename), use_sudo=True)
