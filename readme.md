@@ -3,6 +3,7 @@
 
 ``` shell
 mkvirtualenv --no-site-packages deployer -p /usr/bin/python2.7
+sudo apt-get install socat  # socatも使ってるので入れておく
 ```
 
 ## bin/をPATHに入れておく
@@ -25,6 +26,8 @@ wfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** setup_aws_ec2:`whoami`
 2. id_rsaの生成
 3. authorized_keysに追加
 4. sudoersにそのユーザーを追加(adminグループに追加)
+
+※このあとcreate_swapでスワップファイルを作っておいたほうが良い。clamdを入れると大概メモリが不足する
 
 ### 実行後
 #### ログででてきたものを~/.ssh/configに以下を追加
@@ -69,8 +72,5 @@ $ python rdocker <host>
 # /var/run/docker.sockをトンネルしてローカルに持ってくる
 (-> <host>) $ docker ps # <= リモートのdockerに接続!
 ```
-
-
-
 
 # orche

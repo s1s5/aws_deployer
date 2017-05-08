@@ -212,6 +212,7 @@ class Orchestra(object):
                 'extra_hosts', base_hosts) + extra_hosts
 
         self.addConfig(config_data, services)
+        self.config_data = config_data
         # print config_data.version
         # print dir(config_data)
         self.default_project = self.getProject()
@@ -281,6 +282,18 @@ class Orchestra(object):
             [str(x) for x in self.hosts],
             self.default_project.name, sleep_time=1)
         self.proxy.start()
+
+        services = {}
+        for service in self.default_project.services:
+            release_id = service.build() if service.can_be_built() else service.image_name
+            services[service.name] = {
+                'environment': [
+                    'RELEASE_ID={}/{}/{}'.format(
+                        self.conf_dict['project'], service.name, release_id)
+                ],
+            }
+        self.addConfig(self.config_data, services)
+
         self.projects = {host: self.getProject(self.proxy.getSock(host))
                          for host in self.hosts}
         if build:
