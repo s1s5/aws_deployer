@@ -6,10 +6,11 @@ from __future__ import absolute_import
 import re
 import getpass
 import os
+import paramiko
 
 from fabric.decorators import task
 from fabric.state import env
-from fabric.api import settings, run, sudo, local, put, hide, warn_only  # prompt
+from fabric.api import settings, run, sudo, local, put, hide, warn_only, runs_once  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
 from fabric.contrib.files import append, exists
@@ -27,11 +28,35 @@ def ping():
 
 
 @task
+@runs_once
 def reboot():
-    """リブート"""
+    # """リブート"""
+    config_file = os.path.join(os.getenv('HOME'), '.ssh/config')
+    ssh_config = paramiko.SSHConfig()
+    ssh_config.parse(open(config_file, 'r'))
+
+    depends = []
+    for i in env['hosts']:
+        d = ssh_config.lookup(i)
+        l = []
+        for j in env['hosts']:
+            if j in d.get('proxycommand', ''):
+                l.append(j)
+        depends.append((i, l))
+
+    root = [x[0] for x in depends if len(x[1]) == 0]
+    depends = [x for x in depends if len(x[1])]
+    while depends:
+        for idx, i in enumerate(depends):
+            if not set(i[1]).difference(set(root)):
+                root.append(i[0])
+                break
+        depends.pop(idx)
     with settings(hide('warnings'),
                   warn_only=True, ):
-        sudo("shutdown -r now")
+        for node in reversed(root):
+            env['host_string'] = node
+            sudo("shutdown -r now")
 
 
 @task
