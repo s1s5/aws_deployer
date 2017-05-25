@@ -11,6 +11,7 @@ import six
 from pprint import pprint
 import threading
 import subprocess
+import operator
 
 from fabric.api import hide  # execute
 from fabric.state import env
@@ -22,6 +23,9 @@ from ansible.inventory import Inventory
 
 from compose.cli import command
 from compose.config import config as dc_config
+from compose.service import BuildAction
+from compose.service import ConvergenceStrategy
+from compose.project import ProjectError
 
 # import docker_tools
 from docker_tools import over_ssh
@@ -320,19 +324,77 @@ class Orchestra(object):
                                for x in services]
         self.proxy.push(image_map)
 
+    def _project_up(self, project, service_names):
+        from compose import parallel
+
+        project.initialize()
+        project.find_orphan_containers(True)
+
+        # services = project.get_services_without_duplicate(
+        #     service_names,
+        #     include_deps=start_deps)
+        services = project.get_services(service_names, False)
+
+        def check(service):
+            service.remove_duplicate_containers()
+            service.ensure_image_exists(do_build=BuildAction.none)
+        tl = []
+        for service in services:
+            t = threading.Thread(target=check, args=(service, ))
+            t.start()
+            tl.append(t)
+        [x.join() for x in tl]
+
+        plans = project._get_convergence_plans(services, ConvergenceStrategy.changed)
+
+        def do(service):
+            return service.execute_convergence_plan(
+                plans[service.name],
+                timeout=None,
+                detached=True
+            )
+
+        def get_deps(service):
+            return {
+                (project.get_service(dep), config)
+                for dep, config in service.get_dependency_configs().items()
+            }
+
+        results, errors = parallel.parallel_execute(
+            services,
+            do,
+            operator.attrgetter('name'),
+            None,
+            get_deps
+        )
+
+        if errors:
+            raise ProjectError(
+                'Encountered errors while bringing up the project.'
+            )
+
+        return [
+            container
+            for svc_containers in results
+            if svc_containers is not None
+            for container in svc_containers
+        ]
+
     def up(self):
         tl = []
         for host in self.hosts:
             service_names = self.hosts[host].get('services', {})
             project = self.projects[host]
+            # t = threading.Thread(
+            #     target=project.up,
+            #     kwargs={
+            #         'service_names': service_names,
+            #         'start_deps': False,
+            #         'detached': True,
+            #         'remove_orphans': True,
+            #     })
             t = threading.Thread(
-                target=project.up,
-                kwargs={
-                    'service_names': service_names,
-                    'start_deps': False,
-                    'detached': True,
-                    'remove_orphans': True,
-                })
+                target=self._project_up, args=(project, service_names))
             t.start()
             tl.append(t)
         [x.join() for x in tl]

@@ -132,6 +132,15 @@ def user_del(username):
 
 
 @task
+def update_id_rsa_pub(username, id_rsa_pub):
+    put(id_rsa_pub,
+        '/home/{}/.ssh/authorized_keys'.format(username),
+        use_sudo=True)
+    sudo('chmod 600 /home/{}/.ssh/authorized_keys'.format(username))
+    sudo('chown -R {username}:dev /home/{username}/.ssh/authorized_keys'.format(username=username))
+
+
+@task
 def setup_nat_instance():
     """AWSのnat instanceの設定をする"""
     sudo('sysctl -w net.ipv4.ip_forward=1')

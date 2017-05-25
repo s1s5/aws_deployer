@@ -6,5 +6,6 @@ workon deployer
 
 # set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
 script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+# python -m cProfile -s cumtime ${script_dir}/../orchestra.py $*
 python ${script_dir}/../orchestra.py $*
 deactivate

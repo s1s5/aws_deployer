@@ -264,6 +264,7 @@ class DockerTunnel(object):
                                       stderr=subprocess.PIPE)
         # print type(ret)
         ret = ret.decode('UTF-8')
+        pid_list = []
         for line in ret.splitlines():
             line = line.strip()
             line = filter(lambda x: x, line.split(' '))
@@ -271,8 +272,9 @@ class DockerTunnel(object):
             cmd = line[10:]
             # print self.cmd_id in ' '.join(cmd), self.cmd_id, ' '.join(cmd)
             if self.cmd_id in ' '.join(cmd):
-                with hide('stdout', 'warnings', 'running'), warn_only():
-                    sudo('kill {}'.format(pid))
+                pid_list.append(pid)
+        with hide('stdout', 'warnings', 'running'), warn_only():
+            sudo('kill {}'.format(' '.join(pid_list)))
         # self.tunnel.__exit__(type_, value, traceback)
         # self.tunnel = None
 
@@ -419,11 +421,18 @@ class DockerMultipleProxy(object):
         return self
 
     def __exit__(self, type_, value, traceback):
-        [x.__exit__(type_, value, traceback) for x in self.rev_tunnels]
+        tl = []
+        for rt in self.rev_tunnels + [self.reg]:
+            t = threading.Thread(
+                target=rt.__exit__, args=(type_, value, traceback))
+            t.start()
+            tl.append(t)
+        # [x.__exit__(type_, value, traceback) for x in self.rev_tunnels]
         for dt in self.docker_tunnels:
             env.host_string = dt.hostname
             dt.__exit__(type_, value, traceback)
-        self.reg.__exit__(type_, value, traceback)
+        # self.reg.__exit__(type_, value, traceback)
+        [x.join() for x in tl]
         self.reg = None
         self.dt = None
         self.st = None
@@ -480,7 +489,28 @@ class DockerMultipleProxy(object):
     def __push_list(self, hostname, image_tag_list):
         # print hostname, type(hostname), self.remote_clients
         rcl = self.remote_clients[hostname]
-        [self.__push(rcl, x[0], x[1]) for x in image_tag_list]
+        if False:
+            [self.__push(rcl, x[0], x[1]) for x in image_tag_list]
+        else:
+            tl = []
+            iid_set = set()
+            lazy_set = []
+            for image, tag in image_tag_list:
+                if isinstance(image, (str, unicode)):
+                    image = self.local_client.images.get(image)
+                iid = image.id.split(':')[1]
+                # print(iid, iid_set)
+                if iid in iid_set:
+                    lazy_set.append((image, tag))
+                    continue
+                iid_set.add(iid)
+                t = threading.Thread(
+                    target=self.__push, args=(rcl, image, tag, ))
+                t.start()
+                tl.append(t)
+            [x.join() for x in tl]
+            # print('lazy_set:', lazy_set)
+            [self.__push(rcl, x[0], x[1]) for x in lazy_set]
 
     def push(self, image_map):
         tl = []
