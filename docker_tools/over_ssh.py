@@ -68,7 +68,7 @@ def create_tls_cert(filename=None, confirm_overwrite=True, run_on_localhost=Fals
 
 
 class DockerRegistry(object):
-    def __init__(self, project_name, port=55124):
+    def __init__(self, project_name, port=-1):
         self.plist = []
         self.project_name = project_name
         self.port = port
@@ -280,10 +280,12 @@ class DockerTunnel(object):
 
 
 class DockerProxy(object):
-    def __init__(self, hostname, project_name, registry_port=55124, sock_name=None, sleep_time=10):
+    def __init__(self, hostname, project_name, registry_port=-1, sock_name=None, sleep_time=10):
         self.hostname = hostname
         self.project_name = project_name
         self.registry_port = registry_port
+        if registry_port < 0:
+            self.registry_port = random.randint(32768, 65535)
         self.__local_client = None
         self.__remote_client = None
         self.reg = None
@@ -383,10 +385,12 @@ class DockerProxy(object):
 
 
 class DockerMultipleProxy(object):
-    def __init__(self, hostnames, project_name, registry_port=55124, sleep_time=10):
+    def __init__(self, hostnames, project_name, registry_port=-1, sleep_time=10):
         self.hostnames = hostnames
         self.project_name = project_name
         self.registry_port = registry_port
+        if registry_port < 0:
+            self.registry_port = random.randint(32768, 65535)
         self.__local_client = None
         self.__remote_clients = None
         self.reg = None

@@ -43,6 +43,8 @@ class ReverseTunnel(object):
             p.stdin.flush()
             p.stdout.readline()
             self.plist.append(p)
+        self.cur_local_port = local_port
+        self.cur_remote_port = remote_port
         return self
 
     def __exit__(self, type_, value, traceback):
