@@ -165,8 +165,22 @@
   notify:
     - restart td-agent
 
+- set_fact:
+    pif_name: "{{ item }}"
+  register: set_fact_result
+  when: "ansible_{{ item|replace('-', '_') }}.module is defined"
+  with_items: "{{ ansible_interfaces }}"
+
+- set_fact:
+    pif_names: >-
+      {{ set_fact_result.results
+      | selectattr('ansible_facts', 'defined')
+      | map(attribute='ansible_facts.pif_name')
+      | list }}
+- debug: var=pif_names
+
 - name: copy dstat conf for fluentd
-  copy:
+  template:
     src: 70-dstat.conf
     dest: /etc/td-agent/conf.d/70-dstat.conf
     owner: td-agent
