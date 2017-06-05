@@ -154,8 +154,20 @@ def setup_nat_instance():
 def create_swap(size='1G', filename='/swapfile'):
     """swapファイルの作成"""
     if exists(filename):
-        puts('failed to create {}'.format(filename))
-        return
+        puts('Resizing swapsize {}'.format(filename))
+        res = run('free | grep Swap')
+        work = res.split()
+        if work[2] == '0':
+            # swap未使用に付き続行
+            sudo('swapoff -a')
+            sudo('rm {}'.format(filename))
+            # もしここで終わる場合は次も必要だけど、リサイズなので
+            # sudo("cat /etc/fstab | grep -v 'none swap sw 0 0' > /etc/fstab")
+            # TODO:もし既に別の方法で作ったSwapfileがある場合は未対応
+        else:
+            puts("Swap file is being used.Processing stop.")
+            return
+
     sudo('fallocate -l {} {}'.format(size, filename))
     sudo('chmod 600 {}'.format(filename))
     sudo('mkswap {}'.format(filename))
