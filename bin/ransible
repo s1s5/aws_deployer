@@ -1,0 +1,16 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+source `which virtualenvwrapper.sh`
+workon deployer
+
+# set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
+
+script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+pushd `pwd`
+cd ${script_dir}/..
+
+fab -f fabfile.py -H ${1} install_default_packages create_swap
+ansible-playbook -i ${1}, ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7"
+deactivate
+popd

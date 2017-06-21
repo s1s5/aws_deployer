@@ -260,6 +260,7 @@
 
 - name: Set firewall default policy
   ufw: state=enabled policy=reject
+  when: allowed_port_list is defined
 #   when: nat_instance is undefined and not nat_instance
 
 # - name: Set firewall default policy

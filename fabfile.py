@@ -60,6 +60,14 @@ def reboot():
 
 
 @task
+def install_default_packages():
+    with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
+        sudo('apt update')
+        sudo('apt upgrade -y')
+        sudo('apt install python2.7 -y', pty=False)
+
+
+@task
 def setup_aws_ec2(username, id_rsa_pub=None):
     """setup_aws_ec2:<username>でユーザー作成＋devグループの作成、id_rsa.pubの作成を行う。"""
     with warn_only():

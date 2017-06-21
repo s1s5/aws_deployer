@@ -63,6 +63,7 @@ $ wfab -H <host alias> user_del:ubuntu
 # deployerのディレクトリに移動
 # <new-host>にホスト名を入れる。一個のホストの場合はかならず「,」を最後にいれる。
 $ ansible-playbook -i <new-host>, ansible/site.yml 
+$ ransible <hostname>
 ```
 
 # rdocker

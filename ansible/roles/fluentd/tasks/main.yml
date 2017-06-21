@@ -27,6 +27,16 @@
   apt: name="td-agent={{ tdagent_version }}*"  update_cache=yes  state=present force=yes
   when: tdagent_version is defined
 
+- name: run td-agent with root(user)
+  replace: dest=/etc/init.d/td-agent regexp='^TD_AGENT_USER=td-agent$' replace='TD_AGENT_USER=root' backup=yes
+  notify:
+    - reload td-agent daemon
+
+- name: run td-agent with root(group)
+  replace: dest=/etc/init.d/td-agent regexp='^TD_AGENT_GROUP=td-agent$' replace='TD_AGENT_GROUP=root' backup=yes
+  notify:
+    - reload td-agent daemon
+
 - name: install libcurl and make for compiling plugins
   apt: name={{ item }}  state=present update_cache=yes
   with_items:
