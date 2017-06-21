@@ -11,6 +11,6 @@ pushd `pwd`
 cd ${script_dir}/..
 
 fab -f fabfile.py -H ${1} install_default_packages create_swap
-ansible-playbook -i ${1}, ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7"
+ansible-playbook -i ${1}, ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7" -K
 deactivate
 popd
