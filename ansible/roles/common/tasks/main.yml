@@ -83,7 +83,7 @@
   service: name={{ item }} state=started enabled=yes
   with_items:
     - ntp
-    - ufw
+    # - ufw
     - auditd
     - cron
 
@@ -231,41 +231,41 @@
     # - { re: "^ExcludePath ./etc/", line: "ExcludePath ^/etc/" }
   notify: service clamd restart
 
-# Allow all access to tcp port 80:
-- name: allow ssh
-  ufw:
-    rule: allow
-    port: 22
-    proto: tcp
+# # Allow all access to tcp port 80:
+# - name: allow ssh
+#   ufw:
+#     rule: allow
+#     port: 22
+#     proto: tcp
 
-- name: allow ports
-  ufw: rule=allow port={{ item.port }} proto={{ item.proto }}
-  with_items: "{{ allowed_port_list }}"
-  when: allowed_port_list is defined
+# - name: allow ports
+#   ufw: rule=allow port={{ item.port }} proto={{ item.proto }}
+#   with_items: "{{ allowed_port_list }}"
+#   when: allowed_port_list is defined
 
-- name: allow docker ips. allow containers to talk to each other through exposed ports on the main server
-  ufw: rule=allow src=172.17.0.0/16
+# - name: allow docker ips. allow containers to talk to each other through exposed ports on the main server
+#   ufw: rule=allow src=172.17.0.0/16
 
-# - name: allow containers to talk to each other directly
-#   ufw: rule=allow route=yes src=172.17.0.0/16
+# # - name: allow containers to talk to each other directly
+# #   ufw: rule=allow route=yes src=172.17.0.0/16
 
-# # iptables -t nat -A POSTROUTING ! -o docker0 -s 172.17.0.0/16 -j MASQUERADE # allow outbound connections to the internet from containers
+# # # iptables -t nat -A POSTROUTING ! -o docker0 -s 172.17.0.0/16 -j MASQUERADE # allow outbound connections to the internet from containers
 
-# - ufw: rule=allow route=yes src=10.0.0.0/16
+# # - ufw: rule=allow route=yes src=10.0.0.0/16
+# #   when: nat_instance is defined and nat_instance
+
+# - name: allow route packet for nat_instance
+#   ufw: rule=allow route=yes
 #   when: nat_instance is defined and nat_instance
-
-- name: allow route packet for nat_instance
-  ufw: rule=allow route=yes
-  when: nat_instance is defined and nat_instance
-
-- name: Set firewall default policy
-  ufw: state=enabled policy=reject
-  when: allowed_port_list is defined
-#   when: nat_instance is undefined and not nat_instance
 
 # - name: Set firewall default policy
-#   ufw: state=enabled policy=allow
-#   when: nat_instance is defined and nat_instance
+#   ufw: state=enabled policy=reject
+#   when: allowed_port_list is defined
+# #   when: nat_instance is undefined and not nat_instance
+
+# # - name: Set firewall default policy
+# #   ufw: state=enabled policy=allow
+# #   when: nat_instance is defined and nat_instance
 
 - name: set hostname
   hostname: name="{{ inventory_hostname }}"
