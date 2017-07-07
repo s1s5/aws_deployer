@@ -15,7 +15,7 @@ import subprocess
 from fabric.api import hide
 from fabric.state import env
 
-import docker
+# import docker
 from compose.cli import command
 from compose.config import config as dc_config
 from compose.service import BuildAction
@@ -287,6 +287,7 @@ class Orchestra(object):
                 tl.append(t)
             [x.join() for x in tl]
         else:
+            # caution !! project.client == docker.APIClient()
             service_release_ids = {}
             disabled_service_names = set(x.name for x in project.services).difference(service_names)
             project.stop(disabled_service_names)
@@ -300,7 +301,7 @@ class Orchestra(object):
                     ],
                 }
                 # print(image_id, service_name, service.image_name, dir(service))
-                # print(project.client.images()), project.client = docker.APIClient()
+                # print(project.client.images())
                 config = project.client.inspect_image(service.image_name)['Config']
                 ports = [x.split('/')[0]
                          for x in config.get('ExposedPorts', {}).keys()]
