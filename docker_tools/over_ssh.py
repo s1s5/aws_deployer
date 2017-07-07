@@ -129,6 +129,19 @@ def _socat_remote(hostname, port):
                    "UNIX-CONNECT\:/var/run/docker.sock"]))
 
 
+def exchange_certs(tmp_file=None):
+    if tmp_file is None:
+        tmp_file = '/tmp/{}.crt'.format(uuid.uuid4().hex)
+
+    local_basename = get_base_filename(True)
+    remote_basename = get_base_filename(False)
+    create_tls_cert(confirm_overwrite=False, run_on_localhost=True)
+    create_tls_cert(confirm_overwrite=False, run_on_localhost=False)
+    put(local_path='{}.crt'.format(local_basename), remote_path=tmp_file)
+    get(local_path=tmp_file, remote_path='{}.crt'.format(remote_basename))
+    return tmp_file
+
+
 class DockerTunnel(object):
 
     def __init__(self, hostname, port=-1, sock_name=None):
