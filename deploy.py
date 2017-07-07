@@ -293,7 +293,12 @@ class Orchestra(object):
             project.stop(disabled_service_names)
             for service_name in service_names:
                 service = project.get_service(service_name)
-                image_id = service.build() if service.can_be_built() else service.image_name
+                if service.can_be_built():
+                    image_id = service.build()
+                else:
+                    project.client.pull(service.image_name)
+                    image_id = service.image_name
+
                 service_release_ids[service.name] = {
                     'environment': [
                         'RELEASE_ID={}:{}/{}/{}'.format(

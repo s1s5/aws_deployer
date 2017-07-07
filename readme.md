@@ -55,7 +55,7 @@ $ ssh-add ~/.ssh/ubuntu_52.87.***.***_id_rsa # <= 作成されたid_rsa
 
 ### 最後にデフォルトで作成されるubuntuを削除する
 ```
-$ wfab -H <host alias> user_del:ubuntu
+$ rfab -H <host alias> user_del:ubuntu
 ```
 
 ## OSのいろいろな設定を行っておく
