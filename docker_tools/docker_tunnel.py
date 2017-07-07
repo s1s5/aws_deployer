@@ -32,6 +32,8 @@ class DockerTunnelDaemon(daemon.Daemon):
             kwargs['stdout'] = os.path.join(self.tmp_dir, 'log')
         if not kwargs.get('stderr'):
             kwargs['stderr'] = os.path.join(self.tmp_dir, 'log')
+        self.sock_name = os.path.join(self.tmp_dir, '{}.sock'.format(self.hostname))
+        self.cert_file = os.path.join(self.tmp_dir, '{}.crt'.format(self.hostname))
 
         super(DockerTunnelDaemon, self).__init__(*args, **kwargs)
         self.__started = False
@@ -44,6 +46,7 @@ class DockerTunnelDaemon(daemon.Daemon):
         if not os.path.exists(self.tmp_dir):
             os.mkdir(self.tmp_dir)
         with hide('running', 'stdout'):
+            run("socat -h")
             sudo("true")
             run("mkdir -p {}".format(self.tmp_dir))
             run("chmod 700 {}".format(self.tmp_dir))
@@ -53,8 +56,6 @@ class DockerTunnelDaemon(daemon.Daemon):
         self.remote_basename = over_ssh.get_base_filename(False)
 
         self.port = random.randint(10000, 65535)
-        self.sock_name = os.path.join(self.tmp_dir, '{}.sock'.format(self.hostname))
-        self.cert_file = os.path.join(self.tmp_dir, '{}.crt'.format(self.hostname))
         over_ssh.exchange_certs(self.cert_file)
 
         self.__started = True
@@ -66,6 +67,11 @@ class DockerTunnelDaemon(daemon.Daemon):
     def run(self):
         self.startup()
 
+        try:
+            os.remove(self.sock_name)
+        except:
+            pass
+
         kw = {
             'sock': self.sock_name,
             'port': self.port,
@@ -74,15 +80,26 @@ class DockerTunnelDaemon(daemon.Daemon):
             'remote_host': self.hostname,
             'crt': self.cert_file,
         }
-        cmd0 = ["socat", "-t3600", "TCP-LISTEN:{},forever,reuseaddr,fork".format(self.port),
-                "EXEC:'ssh {} socat STDIO \"TCP:127.0.0.1:{}\"'".format(self.hostname, self.port)]
-        cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
-                "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
-        # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
-        cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
-                (["-S", ] if env['password'] else []) +
-                [("socat -t3600 openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
-                  "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+        if True:
+            cmd0 = ["socat", "-t3600", "TCP-LISTEN:{},forever,reuseaddr,fork".format(self.port),
+                    "EXEC:'ssh {} socat STDIO \"TCP:localhost:{}\"'".format(self.hostname, self.port)]
+            cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
+                    "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
+            # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
+            cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
+                    (["-S", ] if env['password'] else []) +
+                    [("socat -t3600 openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
+                      "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+        else:
+            cmd0 = ["socat", "-t3600", "TCP-LISTEN:{},forever,reuseaddr,fork".format(self.port),
+                    "EXEC:'ssh {} socat STDIO \"TCP:localhost:{}\"'".format(self.hostname, self.port)]
+            cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
+                    "tcp-connect:localhost:{port}".format(**kw)]
+            # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
+            cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
+                    (["-S", ] if env['password'] else []) +
+                    [("socat -t3600 tcp-listen:{port},fork,forever,reuseaddr "
+                      "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
 
         p0 = subprocess.Popen(cmd0)
         p1 = subprocess.Popen(cmd1)
@@ -104,6 +121,13 @@ class DockerTunnelDaemon(daemon.Daemon):
         p2.terminate()
 
     def connect(self):
+        if self.get_pid():
+            try:
+                subprocess.check_call(['docker', '-H', 'unix://{}'.format(self.sock_name), 'version'],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, )
+            except:
+                self.stop()
+
         if not self.get_pid():
             p = Process(target=self.execute, args=('start', ))
             p.start()

@@ -5,7 +5,6 @@ from __future__ import absolute_import
 import uuid
 import subprocess
 import os
-from multiprocessing import Process
 
 from docker_tools import docker_tunnel
 from fabric.state import env
