@@ -184,21 +184,21 @@ class Daemon(object):
 
     def execute(self, operation):
         if operation == 'start':
-            print("Starting daemon")
+            # print("Starting daemon")
             self.start()
             pid = self.get_pid()
 
-            if not pid:
-                print("Unable run daemon")
-            else:
-                print("Daemon is running [PID=%d]" % pid)
+            # if not pid:
+            #     print("Unable run daemon")
+            # else:
+            #     print("Daemon is running [PID=%d]" % pid)
 
         elif operation == 'stop':
-            print("Stoping daemon")
+            # print("Stoping daemon")
             self.stop()
 
         elif operation == 'restart':
-            print("Restarting daemon")
+            # print("Restarting daemon")
             self.restart()
         elif operation == 'status':
             print("Viewing daemon status")

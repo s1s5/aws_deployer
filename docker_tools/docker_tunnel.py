@@ -9,6 +9,7 @@ import subprocess
 import random
 import time
 import signal
+from multiprocessing import Process
 
 from fabric.state import env
 from fabric.api import sudo, run, hide
@@ -24,16 +25,22 @@ class DockerTunnelDaemon(daemon.Daemon):
 
     def __init__(self, *args, **kwargs):
         self.hostname = kwargs.pop('hostname')
+        self.tmp_dir = os.path.join('/tmp', 'docker-{}'.format(os.environ['USER']))
+        if not kwargs.get('pidfile'):
+            kwargs['pidfile'] = os.path.join(self.tmp_dir, '{}.pid'.format(self.hostname))
+        if not kwargs.get('stdout'):
+            kwargs['stdout'] = os.path.join(self.tmp_dir, 'log')
+        if not kwargs.get('stderr'):
+            kwargs['stderr'] = os.path.join(self.tmp_dir, 'log')
+
         super(DockerTunnelDaemon, self).__init__(*args, **kwargs)
         self.__started = False
 
     def startup(self):
-        print(self.__started)
         if self.__started:
             return
 
         env.host_string = self.hostname
-        self.tmp_dir = os.path.join('/tmp', 'docker-{}'.format(os.environ['USER']))
         if not os.path.exists(self.tmp_dir):
             os.mkdir(self.tmp_dir)
         with hide('running', 'stdout'):
@@ -51,16 +58,13 @@ class DockerTunnelDaemon(daemon.Daemon):
         over_ssh.exchange_certs(self.cert_file)
 
         self.__started = True
-        print("started")
 
     def daemonize(self):
         self.startup()
         super(DockerTunnelDaemon, self).daemonize()
 
     def run(self):
-        print("run start")
         self.startup()
-        print(self.hostname, self.port, self.sock_name, self.cert_file, env['password'])
 
         kw = {
             'sock': self.sock_name,
@@ -88,7 +92,6 @@ class DockerTunnelDaemon(daemon.Daemon):
             p2.stdin.write(env['password'] + '\n')
             p2.stdin.flush()
 
-        print("entering loop")
         try:
             while True:
                 time.sleep(0.1)
@@ -100,10 +103,21 @@ class DockerTunnelDaemon(daemon.Daemon):
         p1.terminate()
         p2.terminate()
 
+    def connect(self):
+        if not self.get_pid():
+            p = Process(target=self.execute, args=('start', ))
+            p.start()
+            p.join()
+
+
+def connect(hostname):
+    DockerTunnelDaemon(hostname=hostname).connect()
+
 
 def main():
     """
     The application entry point
+    python -m docker_tools.docker_tunnel restart -H subuntu0
     """
     parser = argparse.ArgumentParser(
         # prog='PROG',
@@ -124,9 +138,8 @@ def main():
     operation = args.operation
 
     # Daemon
-    daemon = DockerTunnelDaemon(pidfile='/tmp/tunnel.pid', stdout="/tmp/tunnel.stdout",
-                                stderr="/tmp/tunnel.stdout",
-                                hostname=args.hostname)
+    daemon = DockerTunnelDaemon(hostname=args.hostname)
+
     daemon.execute(operation)
 
 
