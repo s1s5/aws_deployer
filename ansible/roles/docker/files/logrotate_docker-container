@@ -2,7 +2,7 @@
   rotate 8
   weekly
   compress
-  size=128M
+  minsize=16M
   missingok
   delaycompress
   copytruncate

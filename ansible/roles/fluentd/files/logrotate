@@ -4,6 +4,7 @@
   compress
   delaycompress
   notifempty
+  minsize=16M
   create 640 td-agent td-agent
   sharedscripts
   postrotate
