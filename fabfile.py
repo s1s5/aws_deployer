@@ -64,7 +64,7 @@ def install_default_packages():
     with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
         sudo('apt update')
         sudo('apt upgrade -y')
-        sudo('apt install python2.7 -y', pty=False)
+        sudo('apt install socat python2.7 -y', pty=False)
 
 
 @task
@@ -76,11 +76,7 @@ def setup_aws_ec2(username, id_rsa_pub=None):
         sudo('groupadd dev')
     if username != '-':
         user_add(username, id_rsa_pub)
-    # docker.create_tls_cert('/home/{}/.ssh/localhost'.format(username))
-    with hide('stdout'), shell_env(DEBIAN_FRONTEND='noninteractive'):
-        sudo('apt update')
-        sudo('apt upgrade -y')
-        sudo('apt install python2.7 -y', pty=False)
+    install_default_packages()
 
 
 @task
