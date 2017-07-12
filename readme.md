@@ -12,6 +12,16 @@ sudo apt-get install socat  # socatも使ってるので入れておく
 rfab -H localhost ping
 ```
 
+### bash_complete
+
+``` shell
+_ssh_config ()
+{
+    COMPREPLY+=( $(compgen -W "$(grep "host " ~/.ssh/config  | egrep -v "^#" | awk '{print $2}')" ${COMP_WORDS[COMP_CWORD]} ) )
+}
+complete -F _ssh_config ransible rdocker docker-connect docker-disconnect
+```
+
 ## test login
 ```
 rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** ping
@@ -27,7 +37,6 @@ rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** setup_aws_ec2:`whoami`
 3. authorized_keysに追加
 4. sudoersにそのユーザーを追加(adminグループに追加)
 
-※このあとcreate_swapでスワップファイルを作っておいたほうが良い。clamdを入れると大概メモリが不足する
 
 ### 実行後
 #### ログででてきたものを~/.ssh/configに以下を追加
@@ -62,7 +71,7 @@ $ rfab -H <host alias> user_del:ubuntu
 - ネットワーク周りの設定、不要なサービスのアンインストール
 - fluentd、dockerのインストール
 - ※AIDE, PSADがまだちゃんと動いていなさそう。。
-
+- ※clamdを入れると大概メモリが不足するのでswapfileを作っておく
 ```
 $ ransible <host alias>
 ```
@@ -81,6 +90,17 @@ $ python rdocker <host alias>
 ``` shell
 $ python rdocker <host alias0> <host alias1> <host alias2>
 ```
+
+## set environment only
+
+``` shell
+
+$ eval `docker-connect <host alias>`
+
+$ eval `docker-disconnect <host alias>`
+
+```
+
 
 # dc-deploy
 

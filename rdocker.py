@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import uuid
 import subprocess
+import sys
 import os
 
 from docker_tools import docker_tunnel
@@ -68,7 +69,15 @@ def main(options):
     hosts = options.args
 
     for hostname in hosts:
-        docker_tunnel.connect(hostname)
+        if options.close:
+            docker_tunnel.close(hostname)
+        else:
+            if docker_tunnel.connect(hostname):
+                print_('some errror occurred... exit', file=sys.stderr)
+                return
+
+    if options.connect_only or options.close:
+        return
 
     tmp_filename = '/tmp/{}.sh'.format(uuid.uuid4().hex)
 
@@ -88,6 +97,8 @@ def __entry_point():
         description=u'',  # プログラムの説明
     )
     parser.add_argument("args", nargs="*")
+    parser.add_argument("--close", default=False, action="store_true")
+    parser.add_argument("--connect-only", default=False, action="store_true")
 
     main(parser.parse_args())
 

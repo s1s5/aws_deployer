@@ -102,8 +102,8 @@ class DockerTunnelDaemon(daemon.Daemon):
                       "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
 
         p0 = subprocess.Popen(cmd0)
-        p1 = subprocess.Popen(cmd1)
         p2 = subprocess.Popen(cmd2, stdin=subprocess.PIPE)
+        p1 = subprocess.Popen(cmd1)
 
         if env['password']:
             p2.stdin.write(env['password'] + '\n')
@@ -123,19 +123,41 @@ class DockerTunnelDaemon(daemon.Daemon):
     def connect(self):
         if self.get_pid():
             try:
-                subprocess.check_call(['docker', '-H', 'unix://{}'.format(self.sock_name), 'version'],
+                subprocess.check_call(['docker', '-H', 'unix://{}'.format(self.sock_name), 'info'],
                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, )
             except:
                 self.stop()
+                try:
+                    self.delpid()
+                except:
+                    pass
 
         if not self.get_pid():
             p = Process(target=self.execute, args=('start', ))
             p.start()
             p.join()
+            if not p.exitcode:
+                for i in range(50):
+                    if os.path.exists(self.sock_name):
+                        time.sleep(0.1)
+                        break
+                    time.sleep(0.1)
+                subprocess.check_call(['docker', '-H', 'unix://{}'.format(self.sock_name), 'info'],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, )
+            return p.exitcode
 
 
 def connect(hostname):
-    DockerTunnelDaemon(hostname=hostname).connect()
+    return DockerTunnelDaemon(hostname=hostname).connect()
+
+
+def close(hostname):
+    tunnel = DockerTunnelDaemon(hostname=hostname)
+    tunnel.stop()
+    try:
+        tunnel.delpid()
+    except:
+        pass
 
 
 def main():

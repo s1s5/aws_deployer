@@ -56,6 +56,20 @@
     group: root
     mode: 0644
 
+- name: "remove docker containers"
+  cron:
+    name: "remove docker containers"
+    minute: "11"
+    hour: "3"
+    job: "docker rm `docker ps -aq`"
+
+- name: "remove docker images"
+  cron:
+    name: "remove docker images"
+    minute: "33"
+    hour: "5"
+    job: "docker rmi `docker images -aq`"
+
 # # from https://github.com/spk83/ansible-docker-provision-thinpool
 # - name: check if the device has partition layout
 #   become: true
