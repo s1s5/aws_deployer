@@ -1,9 +1,12 @@
 # coding: utf-8
 from __future__ import unicode_literals
 from __future__ import absolute_import
+from __future__ import print_function
 
-import os
-# import time
+try:
+    input = raw_input
+except NameError:
+    pass
 
 from fabric.decorators import task
 from fabric.state import env
@@ -11,8 +14,6 @@ from fabric.utils import puts
 from fabric.api import local, sudo, warn_only
 
 from . import over_ssh
-from .over_ssh import create_tls_cert  # NOQA
-from . import compose_tools as compose  # NOQA
 
 
 @task
@@ -35,7 +36,7 @@ def sock(sock_name=None):
         puts('send <image tag or hash> # <= でimageを送る')
         try:
             while True:
-                l = raw_input().strip()
+                l = input().strip()
                 if l == 'quit':
                     break
                 elif l.startswith('send'):
@@ -58,7 +59,7 @@ def ps(*args, **kw):
             env['host_string'],
             'deployer') as proxy:
         for container in proxy.remote_client.containers.list():
-            print container
+            print(container)
 
 
 @task
@@ -80,7 +81,7 @@ def images(*args, **kw):
             env['host_string'],
             'deployer') as proxy:
         for image in proxy.remote_client.images.list():
-            print image
+            print(image)
 
 
 @task
