@@ -295,7 +295,7 @@ class Orchestra(object):
             for service_name in service_names:
                 service = project.get_service(service_name)
                 if service.can_be_built():
-                    image_id = service.build()
+                    image_id = service.build(pull=True)
                 else:
                     project.client.pull(service.image_name)
                     image_id = service.image_name
