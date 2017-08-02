@@ -266,7 +266,7 @@ class Orchestra(object):
 
         if errors:
             raise ProjectError(
-                'Encountered errors while bringing up the project.'
+                'Encountered errors while bringing up the project. {}'.format(errors)
             )
 
         return [

@@ -9,16 +9,77 @@ import subprocess
 import random
 import time
 import signal
+import uuid
 from multiprocessing import Process
+from fabric.decorators import task
 
 from fabric.state import env
-from fabric.api import sudo, run, hide
+from fabric.api import sudo, run, hide, local, put, get
+from fabric.contrib.console import confirm as fab_confirm
+from fabric.contrib.files import exists
 
 from . import daemon
-from . import over_ssh
 
 env.forward_agent = True
 env.use_ssh_config = True
+
+
+@task
+def create_tls_cert(filename=None, confirm_overwrite=True, run_on_localhost=False):
+    '''create_tls_cert:<filename> tls証明書の作成'''
+    if filename is None:
+        filename = get_base_filename(run_on_localhost)
+    if run_on_localhost:
+        _run = local
+        _exists = os.path.exists
+    else:
+        _run = run
+        _exists = exists
+    if _exists(filename + '.pem'):
+        if not confirm_overwrite:
+            return
+        if not fab_confirm("overwrite {} ?".format(filename), default=False):
+            return
+    onetime_pass = uuid.uuid4().hex
+    kw = {
+        'filename': filename,
+        'password': onetime_pass,
+    }
+    _run('openssl genrsa -des3 -out {filename}.key '
+         '-passout pass:{password} 2048'.format(**kw))
+    _run('openssl req -passin pass:{password} -new -key {filename}.key '
+         '-out {filename}.csr  -subj "/CN=localhost"'.format(**kw))
+    _run('cp {filename}.key {filename}.key.org'.format(**kw))
+    _run('openssl rsa -passin pass:{password} -in {filename}.key.org '
+         '-out {filename}.key'.format(**kw))
+    _run('openssl x509 -req -days 365 -in {filename}.csr '
+         '-signkey {filename}.key -out {filename}.crt'.format(**kw))
+    _run('cat {filename}.crt {filename}.key > {filename}.pem'.format(**kw))
+    _run('chmod 600 {filename}.key'.format(**kw))
+    _run('chmod 600 {filename}.pem'.format(**kw))
+
+
+def get_base_filename(run_on_localhost):
+    if run_on_localhost:
+        filename = os.path.join(os.path.expanduser("~"), '.ssh', 'localhost')
+    else:
+        with hide('running'), hide('stdout'):
+            username = run('id -un')
+        filename = os.path.join('/home', username, '.ssh', 'localhost')
+    return filename
+
+
+def exchange_certs(tmp_file=None):
+    if tmp_file is None:
+        tmp_file = '/tmp/{}.crt'.format(uuid.uuid4().hex)
+
+    local_basename = get_base_filename(True)
+    remote_basename = get_base_filename(False)
+    create_tls_cert(confirm_overwrite=False, run_on_localhost=True)
+    create_tls_cert(confirm_overwrite=False, run_on_localhost=False)
+    put(local_path='{}.crt'.format(local_basename), remote_path=tmp_file)
+    get(local_path=tmp_file, remote_path='{}.crt'.format(remote_basename))
+    return tmp_file
 
 
 class DockerTunnelDaemon(daemon.Daemon):
@@ -52,11 +113,11 @@ class DockerTunnelDaemon(daemon.Daemon):
             run("chmod 700 {}".format(self.tmp_dir))
         subprocess.call(['chmod', '700', self.tmp_dir])
 
-        self.local_basename = over_ssh.get_base_filename(True)
-        self.remote_basename = over_ssh.get_base_filename(False)
+        self.local_basename = get_base_filename(True)
+        self.remote_basename = get_base_filename(False)
 
         self.port = random.randint(10000, 65535)
-        over_ssh.exchange_certs(self.cert_file)
+        exchange_certs(self.cert_file)
 
         self.__started = True
 
