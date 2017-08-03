@@ -3,6 +3,8 @@ from __future__ import absolute_import
 from __future__ import unicode_literals
 from __future__ import print_function
 
+import logging
+import time
 import uuid
 import copy
 import os
@@ -23,6 +25,8 @@ from compose.service import ConvergenceStrategy
 from compose.project import ProjectError
 
 from docker_tools import docker_tunnel
+
+logger = logging.getLogger(__name__)
 
 
 env.forward_agent = True
@@ -116,7 +120,13 @@ class Orchestra(object):
         needs_expose = set()
         for service in project.services:
             extra_hosts = []
-            depends_on = set(service.config_dict()['options'].get('depends_on', {}).keys())
+            try:
+                depends_on = set(service.config_dict()['options'].get('depends_on', {}).keys())
+            except:
+                logger.exception("depends_on failed")
+                project.build()
+                depends_on = set(service.config_dict()['options'].get('depends_on', {}).keys())
+
             if depends_on:
                 for service2 in project.get_services(depends_on):
                     if service == service2:
@@ -231,14 +241,26 @@ class Orchestra(object):
         services = project.get_services(service_names, False)
 
         def check(service):
-            service.remove_duplicate_containers()
+            for try_cnt in range(3):
+                try:
+                    service.remove_duplicate_containers()
+                    break
+                except:
+                    if try_cnt >= 2:
+                        raise
+                    time.sleep(5)
+
             service.ensure_image_exists(do_build=BuildAction.none)
-        tl = []
-        for service in services:
-            t = threading.Thread(target=check, args=(service, ))
-            t.start()
-            tl.append(t)
-        [x.join() for x in tl]
+        if False:
+            tl = []
+            for service in services:
+                t = threading.Thread(target=check, args=(service, ))
+                t.start()
+                tl.append(t)
+            [x.join() for x in tl]
+        else:
+            for service in services:
+                check(service)
 
         # plans = project._get_convergence_plans(services, ConvergenceStrategy.changed)
         plans = project._get_convergence_plans(services, ConvergenceStrategy.always)
