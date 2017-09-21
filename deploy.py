@@ -314,8 +314,10 @@ class Orchestra(object):
         else:
             # caution !! project.client == docker.APIClient()
             service_release_ids = {}
-            # disabled_service_names = set(x.name for x in project.services).difference(service_names)
-            # project.stop(disabled_service_names)
+            if force_rebuild:
+                disabled_service_names = set(x.name for x in project.services).difference(service_names)
+                project.stop(disabled_service_names)
+
             for service_name in service_names:
                 service = project.get_service(service_name)
                 if service.can_be_built():
