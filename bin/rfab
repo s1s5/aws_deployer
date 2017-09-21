@@ -9,5 +9,5 @@ workon deployer
 script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 
 # docker run -t -i --rm -v /home/`id -un`:/home/`id -un` -e USER_NAME=`id -un` -e USER_ID=`id -u` -e GROUP_ID=`id -g` deployer /opt/docker_startup.sh "cd `pwd`; fab -f /app/fabfile.py $*"
-fab -f ${script_dir}/../fabfile.py $*
+fab --timeout 60 --command-timeout=60 -f ${script_dir}/../fabfile.py $*
 deactivate

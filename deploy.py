@@ -229,7 +229,7 @@ class Orchestra(object):
         [os.remove(x) for x in self.temp_files]
         self.temp_files = []
 
-    def _project_up(self, project, service_names):
+    def _project_up(self, project, service_names, force_rebuild=False):
         from compose import parallel
 
         project.initialize()
@@ -262,8 +262,10 @@ class Orchestra(object):
             for service in services:
                 check(service)
 
-        # plans = project._get_convergence_plans(services, ConvergenceStrategy.changed)
-        plans = project._get_convergence_plans(services, ConvergenceStrategy.always)
+        if force_rebuild:
+            plans = project._get_convergence_plans(services, ConvergenceStrategy.always)
+        else:
+            plans = project._get_convergence_plans(services, ConvergenceStrategy.changed)
 
         def do(service):
             return service.execute_convergence_plan(
@@ -298,7 +300,7 @@ class Orchestra(object):
             for container in svc_containers
         ]
 
-    def build_and_up(self, project=None, service_names=None):
+    def build_and_up(self, project=None, service_names=None, pull_packages=False, force_rebuild=False):
         if project is None:
             tl = []
             for host in self.hosts:
@@ -317,7 +319,7 @@ class Orchestra(object):
             for service_name in service_names:
                 service = project.get_service(service_name)
                 if service.can_be_built():
-                    image_id = service.build(pull=True)
+                    image_id = service.build(pull=pull_packages)
                 else:
                     project.client.pull(service.image_name)
                     image_id = service.image_name
@@ -344,14 +346,17 @@ class Orchestra(object):
             self.addConfig(self.config_data, service_release_ids)
             project = self.getProject(project._host)
             # pprint(service_release_ids)
-            self._project_up(project, service_names)
+            self._project_up(project, service_names, force_rebuild)
 
 
 def main(options, unknown_options):
     orchestra = Orchestra(options.deploy_filename)
     orchestra.start()
     try:
-        orchestra.build_and_up()
+        orchestra.build_and_up(
+            pull_packages=options.pull,
+            force_rebuild=options.force_rebuild,
+        )
     finally:
         orchestra.end()
 
@@ -362,6 +367,8 @@ def __entry_point():
         description=u'',  # プログラムの説明
     )
     parser.add_argument('deploy_filename')
+    parser.add_argument('--pull', default=False, action="store_true")
+    parser.add_argument('--force-rebuild', default=False, action="store_true")
     main(*parser.parse_known_args())
 
 
