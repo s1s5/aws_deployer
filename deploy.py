@@ -268,6 +268,7 @@ class Orchestra(object):
             plans = project._get_convergence_plans(services, ConvergenceStrategy.changed)
 
         def do(service):
+            # print('release: ', service.name, plans[service.name], service.config_hash, service.config_dict())
             return service.execute_convergence_plan(
                 plans[service.name],
                 timeout=None,
@@ -328,8 +329,8 @@ class Orchestra(object):
 
                 service_release_ids[service.name] = {
                     'environment': [
-                        'RELEASE_ID={}:{}/{}/{}'.format(
-                            self.conf_dict['project'], self.git_revision, service.name, image_id),
+                        'RELEASE_ID={}:{}/{}'.format(
+                            self.conf_dict['project'], service.name, image_id),
                         'SERVICE_NAME={}'.format(service_name),
                         'IMAGE_NAME={}'.format(service.image_name),
                     ],
