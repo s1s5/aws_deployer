@@ -154,3 +154,11 @@ $ dc-deploy deploy.yml
 # deperecated
 $ orche deploy.yml
 ```
+
+# ディスク容量が10%切ったらslackへ報告するshを追加する
+```$ rfab install_warn_to_slack:[slack webhook url],[channel],[監視するディスク] -H [hostname]```
+
+/etc/crontabに登録され、30分おきにディスク容量をチェックし10%切ったら指定されたslack urlにメッセージを飛ばす。
+- [slack webhook url] slackのwebhookのURL(省略不可)
+- [channel] slack channel 省略時 #random
+- [監視するディスク] 省略時 /
