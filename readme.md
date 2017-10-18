@@ -156,5 +156,9 @@ $ orche deploy.yml
 ```
 
 # ディスク容量が10%切ったらslackへ報告するshを追加する
-```$ fab  install_warn_to_slack:[slack webhook url] -H [hostname]```
+```$ fab  install_warn_to_slack:[slack webhook url],[channel],[warn_to_sla.shの保存先ディレクトリ] -H [hostname]```
+
 /etc/crontabに登録され、30分おきにディスク容量をチェックし10%切ったら指定されたslack urlにメッセージを飛ばす。
+- [slack webhook url] slackのwebhookのURL(省略不可)
+- [channel] slack channel 省略時 #random
+- [warn_to_sla.shの保存先ディレクトリ] 省略時 /usr/local/bin

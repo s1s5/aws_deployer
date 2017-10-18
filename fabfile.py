@@ -180,9 +180,8 @@ def create_swap(size='1G', filename='/swapfile'):
     append('/etc/fstab', "{} none swap sw 0 0".format(filename), use_sudo=True)
 
 @task
-def install_warn_to_slack(slack_url='https://hooks.slack.com/services/DUMMY'):
-    put("warn_to_slack.sh", "/usr/local/bin", use_sudo=True)
+def install_warn_to_slack(slack_url="https://hooks.slack.com/services/DUMMY", slack_chanel="#random", sh_path="/usr/local/bin"):
+    put("warn_to_slack.sh", sh_path, use_sudo=True)
     sudo('chmod +x /usr/local/bin/warn_to_slack.sh')
     # edit crontab
-    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh {}'.format(slack_url), use_sudo=True)
-    # sudo("sudo cat '*/30 * * * * /usr/local/bin/warn_to_slack.sh {}' >> /etc/crontab".format(slack_url))
+    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh {} {}'.format(slack_url, slack_chanel), use_sudo=True)
