@@ -4,6 +4,9 @@
 ``` shell
 mkvirtualenv --no-site-packages deployer -p /usr/bin/python2.7
 sudo apt-get install socat  # socatも使ってるので入れておく
+# 状況によっては以下も必要
+sudo apt-get install python-dev
+sudo apt-get install libssl-dev
 ```
 
 ## bin/をPATHに入れておく
