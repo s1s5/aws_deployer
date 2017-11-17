@@ -184,4 +184,4 @@ def install_warn_to_slack(slack_url="https://hooks.slack.com/services/DUMMY", sl
     put("bin/warn_to_slack.sh", "/usr/local/bin", use_sudo=True)
     sudo('chmod +x /usr/local/bin/warn_to_slack.sh')
     # edit crontab
-    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh {} {} {}'.format(slack_url, slack_chanel, watch_disk), use_sudo=True)
+    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh "{}" "{}" "{}"'.format(slack_url, slack_chanel, watch_disk), use_sudo=True)
