@@ -112,6 +112,7 @@ class DockerTunnelDaemon(daemon.Daemon):
             run("mkdir -p {}".format(self.tmp_dir))
             run("chmod 700 {}".format(self.tmp_dir))
         subprocess.call(['chmod', '700', self.tmp_dir])
+        sudo("docker pull alpine/socat")
 
         self.local_basename = get_base_filename(True)
         self.remote_basename = get_base_filename(False)
@@ -144,13 +145,30 @@ class DockerTunnelDaemon(daemon.Daemon):
         if True:
             cmd0 = ["socat", "-t3600", "TCP-LISTEN:{},forever,reuseaddr,fork".format(self.port),
                     "EXEC:'ssh {} socat STDIO \"TCP:localhost:{}\"'".format(self.hostname, self.port)]
-            cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
-                    "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
-            # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
-            cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
-                    (["-S", ] if env['password'] else []) +
-                    [("socat -t3600 openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
-                      "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+            if False:
+                cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
+                        "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
+                # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
+                cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
+                        (["-S", ] if env['password'] else []) +
+                        [("socat -t3600 openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
+                          "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+            elif False:
+                cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
+                        "tcp-connect:localhost:{port}".format(**kw)]
+                cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
+                        (["-S", ] if env['password'] else []) +
+                        [("socat -t3600 tcp-listen:{port},fork,forever,reuseaddr "
+                          "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
+            else:
+                cmd1 = ["socat", "-t3600", "unix-listen:{sock},fork,mode=600".format(**kw),
+                        "openssl-connect:localhost:{port},cert={lpem},cafile={crt}".format(**kw)]
+                # cmd2 = (["ssh", "-kTax", self.hostname, "sudo"] +
+                cmd2 = (["ssh", "-t", "-t", "-kax", self.hostname, "sudo"] +
+                        (["-S", ] if env['password'] else []) +
+                        [("docker run -v {crt}:{crt} -v {rpem}:{rpem} -v /var/run/docker.sock:/var/run/docker.sock -p {port}:{port} alpine/socat "
+                          "-t3600 openssl-listen:{port},fork,forever,reuseaddr,cert={rpem},cafile={crt} "
+                          "UNIX-CONNECT:/var/run/docker.sock").format(**kw)])
         else:
             cmd0 = ["socat", "-t3600", "TCP-LISTEN:{},forever,reuseaddr,fork".format(self.port),
                     "EXEC:'ssh {} socat STDIO \"TCP:localhost:{}\"'".format(self.hostname, self.port)]
