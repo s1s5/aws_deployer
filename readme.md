@@ -1,18 +1,23 @@
 # deployer
-## create virtualenv
+# create virtualenv
 
 ``` shell
 mkvirtualenv --no-site-packages deployer -p /usr/bin/python2.7
-sudo apt-get install socat  # socatも使ってるので入れておく
-# 状況によっては以下も必要
-sudo apt-get install python-dev
-sudo apt-get install libssl-dev
+# socatも使ってるので入れておく
+sudo apt-get install python-dev libssl-dev socat
 ```
 
+# 初期設定
 ## bin/をPATHに入れておく
-以下のコマンドが使えるように
 ``` shell
-rfab -H localhost ping
+# @~/.bashrc
+# PATHを追加しておく
+## e.g) export PATH="$PATH:${HOME}/work/deployer/bin"
+export PATH="$PATH:<deployer install dir>/bin"
+
+
+## 以下のコマンドが使えるように
+$ rfab -H localhost ping
 ```
 
 ### bash_complete
@@ -70,7 +75,7 @@ $ ssh-add ~/.ssh/ubuntu_52.87.***.***_id_rsa # <= 作成されたid_rsa
 $ rfab -H <host alias> user_del:ubuntu
 ```
 
-## OSのいろいろな設定を行っておく
+# OSのいろいろな設定を行っておく
 - ネットワーク周りの設定、不要なサービスのアンインストール
 - fluentd、dockerのインストール
 - ※AIDE, PSADがまだちゃんと動いていなさそう。。
@@ -79,6 +84,7 @@ $ rfab -H <host alias> user_del:ubuntu
 $ ransible <host alias>
 
 $ ransible -s <slack_url> <host alias>
+# slack_urlを追加すると/usr/local/bin/alert_to_slack.shが追加される
 ```
 
 # rdocker
