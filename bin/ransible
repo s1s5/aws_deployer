@@ -10,7 +10,40 @@ script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 pushd `pwd`
 cd ${script_dir}/..
 
-fab -f fabfile.py -H ${1} install_default_packages create_swap
-ansible-playbook -i ${1}, ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7" -K
+declare -a args
+for a in $@;do
+    args=("${args[@]}" $a)
+done
+
+
+hosts=${args[0]}
+for ((i = 1; i < ${#args[@]}; i++)) {
+        hosts="${hosts},${args[i]}"
+}
+
+fab -f fabfile.py -H ${hosts} install_default_packages create_swap
+
+if [ $# == 1 ]; then
+    hosts=${hosts},
+fi
+ansible-playbook -i ${hosts} ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7" -K
+
+echo "restarting all hosts ...."
+for ((i = 0; i < ${#args[@]}; i++)) {
+    ssh ${args[i]} sudo reboot &> /dev/null
+}
+
+for ((i = 0; i < ${#args[@]}; i++)) {
+    while :
+    do
+        sleep 1
+        ssh ${args[i]} true &> /dev/null
+        if [ $? == 0 ]; then
+            break
+        fi
+    done
+}
+echo "finished!!"
+
 deactivate
 popd

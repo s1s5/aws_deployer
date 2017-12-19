@@ -210,7 +210,7 @@
     group: td-agent
     mode: 0644
 
-- name: copy dstat conf for fluentd
+- name: copy pystat conf for fluentd
   copy:
     src: 70-pystat.conf
     dest: /etc/td-agent/conf.d/70-pystat.conf
