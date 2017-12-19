@@ -86,6 +86,10 @@ $ ransible <host alias>
 $ python rdocker <host alias>
 # /var/run/docker.sockをトンネルしてローカルに持ってくる
 (-> <host>) $ docker ps # <= リモートのdockerに接続!
+
+# shellを変えずに接続
+$ eval `rdocker --connect-only <host alias>`
+$ unset DOCKER_HOST  # 接続中止
 ```
 
 ## multiple host

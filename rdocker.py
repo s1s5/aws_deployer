@@ -8,7 +8,7 @@ import sys
 import os
 
 from docker_tools import docker_tunnel
-from fabric.state import env
+from fabric.api import hide, env
 from six import print_
 
 env.forward_agent = True
@@ -34,6 +34,8 @@ def search_commons(hosts):
 def create_rc_file(hosts, fp):
     print_('if [ -e ~/.bash_profile ]; then . ~/.bash_profile; fi', file=fp)
     print_('if [ -e ~/.bashrc ]; then . ~/.bashrc; fi', file=fp)
+
+    print_('export IN_RDOCKER=true', file=fp)
 
     print_("alias docker_localhost='docker -H unix:///var/run/docker.sock'", file=fp)
     print_("alias dl='docker -H unix:///var/run/docker.sock'", file=fp)
@@ -68,15 +70,19 @@ def create_rc_file(hosts, fp):
 def main(options):
     hosts = options.args
 
-    for hostname in hosts:
-        if options.close:
-            docker_tunnel.close(hostname)
-        else:
-            if docker_tunnel.connect(hostname):
-                print_('some errror occurred... exit', file=sys.stderr)
-                return
+    with hide('running', 'stdout', 'stderr'):
+        for hostname in hosts:
+            if options.close:
+                docker_tunnel.close(hostname)
+            else:
+                if docker_tunnel.connect(hostname):
+                    print_('some errror occurred... exit', file=sys.stderr)
+                    return
 
-    if options.connect_only or options.close:
+    if options.close:
+        return
+    if options.connect_only:
+        print('export DOCKER_HOST="{}"'.format(get_sock(hosts[0])))
         return
 
     tmp_filename = '/tmp/{}.sh'.format(uuid.uuid4().hex)
