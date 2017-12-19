@@ -74,9 +74,11 @@ $ rfab -H <host alias> user_del:ubuntu
 - ネットワーク周りの設定、不要なサービスのアンインストール
 - fluentd、dockerのインストール
 - ※AIDE, PSADがまだちゃんと動いていなさそう。。
-- ※clamdを入れると大概メモリが不足するのでswapfileを作っておく
+- ※clamdを入れると大概メモリが不足するので1GBのswapfileが自動生成される
 ```
 $ ransible <host alias>
+
+$ ransible -s <slack_url> <host alias>
 ```
 
 # rdocker

@@ -7,8 +7,26 @@ workon deployer
 # set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
 
 script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
-pushd `pwd`
+pushd `pwd` > /dev/null
 cd ${script_dir}/..
+
+usage_exit() {
+    echo "Usage: $0 [-s slack_url] <host names...>" 1>&2
+    exit 0
+}
+
+while getopts s: opts
+do
+    case $opts in
+        s)
+            SLACK_URL=$OPTARG
+            ;;
+        \?)
+            usage_exit
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
 
 declare -a args
 for a in $@;do
@@ -21,12 +39,17 @@ for ((i = 1; i < ${#args[@]}; i++)) {
         hosts="${hosts},${args[i]}"
 }
 
+EXTRA_VARS="ansible_python_interpreter=/usr/bin/python2.7"
+if [ ${SLACK_URL}"" != "" ]; then
+    EXTRA_VARS="${EXTRA_VARS} SLACK_URL=${SLACK_URL}"
+fi
+
 fab -f fabfile.py -H ${hosts} install_default_packages create_swap
 
 if [ $# == 1 ]; then
     hosts=${hosts},
 fi
-ansible-playbook -i ${hosts} ansible/site.yml --extra-vars "ansible_python_interpreter=/usr/bin/python2.7" -K
+ansible-playbook -i ${hosts} ansible/site.yml --extra-vars "${EXTRA_VARS}" -K
 
 echo "restarting all hosts ...."
 for ((i = 0; i < ${#args[@]}; i++)) {
@@ -46,4 +69,4 @@ for ((i = 0; i < ${#args[@]}; i++)) {
 echo "finished!!"
 
 deactivate
-popd
+popd > /dev/null

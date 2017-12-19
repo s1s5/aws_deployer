@@ -283,7 +283,30 @@
 
 - name: set postfix started
   service: name=postfix state=started enabled=yes
-  
+
+- name: copy alert to slack script
+  template:
+    src: alert_to_slack.sh
+    dest: /usr/local/bin/alert_to_slack.sh
+    owner: root
+    group: root
+    mode: 0700
+  when:
+    SLACK_URL is defined
+
+- name: copy check_disk_usage.sh
+  copy:
+    src: check_disk_usage.sh
+    dest: /usr/local/bin/check_disk_usage.sh
+    owner: root
+    group: root
+    mode: 0700
+
+- name: set default disk usage alert cron
+  cron:
+    name: "disk usage alert"
+    minute: "*/10"
+    job: "/bin/bash /usr/local/bin/check_disk_usage.sh"
 
 # - name: restart machine
 #   command: sleep 2 && shutdown -r now "Ansible updates triggered"
