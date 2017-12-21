@@ -53,7 +53,7 @@ ansible-playbook -i ${hosts} ansible/site.yml --extra-vars "${EXTRA_VARS}" -K
 
 echo "restarting all hosts ...."
 for ((i = 0; i < ${#args[@]}; i++)) {
-    ssh ${args[i]} sudo reboot &> /dev/null
+    ssh -t ${args[i]} sudo reboot
 }
 
 for ((i = 0; i < ${#args[@]}; i++)) {

@@ -84,7 +84,7 @@
   with_items:
     - ntp
     # - ufw
-    - auditd
+    # - auditd
     - cron
 
 - name: remove unfavorable packages
@@ -117,6 +117,11 @@
     - smbd
     - squid3
     - snmpd
+
+- name: stop auditd
+  service: name={{ item }} state=stopped enabled=yes
+  with_items:
+    - auditd
 
 - name: block update ntp 
   lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/ntp.conf insertafter=EOF state=present
