@@ -202,13 +202,13 @@
 - name: create directory stat tools
   file: path=/opt/stat_tools/ state=directory owner=td-agent group=td-agent mode=0755
 
-- name: copy stat tools disk_stat.py
-  copy:
-    src: disk_stat.py
-    dest: /opt/stat_tools/disk_stat.py
-    owner: td-agent
-    group: td-agent
-    mode: 0644
+# - name: copy stat tools disk_stat.py
+#   copy:
+#     src: disk_stat.py
+#     dest: /opt/stat_tools/disk_stat.py
+#     owner: td-agent
+#     group: td-agent
+#     mode: 0644
 
 - name: copy stat tools df.py
   copy:
