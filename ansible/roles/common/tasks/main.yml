@@ -119,7 +119,7 @@
     - snmpd
 
 - name: stop auditd
-  service: name={{ item }} state=stopped enabled=yes
+  service: name={{ item }} state=stopped enabled=no
   with_items:
     - auditd
 
