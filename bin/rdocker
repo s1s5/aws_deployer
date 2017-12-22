@@ -1,6 +1,11 @@
 #!/bin/bash
 # -*- mode: shell-script -*-
 
+if [ $# == 0 ]; then
+    echo "unset DOCKER_HOST"
+    exit 0
+fi
+
 dir=/tmp/docker-${USER}
 if [ ! -e ${dir} ]; then
     mkdir -p ${dir}

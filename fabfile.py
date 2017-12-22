@@ -15,8 +15,6 @@ from fabric.utils import puts
 from fabric.context_managers import shell_env
 from fabric.contrib.files import append, exists
 
-import docker_tools as docker  # NOQA
-
 env.forward_agent = True
 env.use_ssh_config = True
 

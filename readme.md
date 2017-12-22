@@ -91,6 +91,9 @@ $ rfab -H <host alias> user_del:ubuntu
 ``` shell
 $ eval `rdocker <host alias>`
 $ docker info
+
+# docker groupに所属している必要があるので、所属していない場合、以下を実行しておく
+$ sudo usermod -G admin,docker `whoami`
 ```
 
 # dc-deploy
