@@ -169,7 +169,7 @@ def create_swap(size='1G', filename='/swapfile'):
             # sudo("cat /etc/fstab | grep -v 'none swap sw 0 0' > /etc/fstab")
             # TODO:もし既に別の方法で作ったSwapfileがある場合は未対応
         else:
-            puts("Swap file is being used.Processing stop.")
+            puts("Swap file already exists. halted.")
             return
 
     sudo('fallocate -l {} {}'.format(size, filename))
@@ -179,11 +179,14 @@ def create_swap(size='1G', filename='/swapfile'):
     # add "{} none swap sw 0 0"
     append('/etc/fstab', "{} none swap sw 0 0".format(filename), use_sudo=True)
 
+
 @task
-def install_warn_to_slack(slack_url="https://hooks.slack.com/services/DUMMY", slack_chanel="#alert", watch_disk="/"):
+def install_disk_usage_alert(slack_url="https://hooks.slack.com/services/DUMMY",
+                             slack_chanel="#alert", watch_disk="/"):
     sh = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin', 'warn_to_slack.sh')
     put(sh, "/usr/local/bin", use_sudo=True)
     sudo('chmod +x /usr/local/bin/warn_to_slack.sh')
     # edit crontab
-    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh "{}" "{}" "{}"'.format(slack_url, slack_chanel, watch_disk), use_sudo=True)
+    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh "{}" "{}" "{}"'.format(
+        slack_url, slack_chanel, watch_disk), use_sudo=True)
     sudo("service cron restart")
