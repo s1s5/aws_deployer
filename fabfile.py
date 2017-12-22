@@ -104,7 +104,7 @@ def user_add(username, id_rsa_pub, sudoer=True):
             id_rsa = '<set your id_rsa path for {}>'.format(id_rsa_pub)
 
         password = getpass.getpass('Input new password: ')
-        sudo('useradd -d /home/{username} -g dev -G admin -s '
+        sudo('useradd -d /home/{username} -g dev -G admin,docker -s '
              '/bin/bash -p `openssl passwd -1 {password}` {username}'.format(
                  username=username, password=password))
         try:

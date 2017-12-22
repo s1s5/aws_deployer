@@ -1,10 +1,40 @@
 #!/bin/bash
 # -*- mode: shell-script -*-
 
-source `which virtualenvwrapper.sh`
-workon deployer
+# source `which virtualenvwrapper.sh`
+# workon deployer
+# 
+# # set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
+# script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+# python ${script_dir}/../rdocker.py $*
+# deactivate
 
-# set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
+dir=/tmp/docker-${USER}-test
+if [ ! -e ${dir} ]; then
+    mkdir -p ${dir}
+    chmod 700 ${dir}
+fi
+
+new_docker_host=${dir}/${1}.sock
+
+# if [ -e ${new_docker_host} ]; then
+#     kill -s kill `ps -ef | grep "ssh -fN -L ${new_docker_host}" | egrep -v grep | awk '{print $2}'`
+#     rm ${new_docker_host}
+# fi
+
 script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
-python ${script_dir}/../rdocker.py $*
-deactivate
+PIDFILE=${dir}/${1}.pid
+DAEMON=${script_dir}/run_daemon.sh
+DAEMON_ARGS="${new_docker_host} ${1}"
+
+if [ -e ${new_docker_host} ]; then
+    start-stop-daemon --stop --pidfile ${PIDFILE} --quiet
+    rm -f ${new_docker_host}
+fi
+
+start-stop-daemon --start --make-pidfile --pidfile ${PIDFILE} \
+                  --background --user ${USER} \
+                  --exec /bin/bash -- -c \
+                  "exec $DAEMON $DAEMON_ARGS >> /tmp/hoge.log 2>&1"
+
+echo "export DOCKER_HOST=unix://${new_docker_host}"
