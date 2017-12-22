@@ -9,7 +9,7 @@
 # python ${script_dir}/../rdocker.py $*
 # deactivate
 
-dir=/tmp/docker-${USER}-test
+dir=/tmp/docker-${USER}
 if [ ! -e ${dir} ]; then
     mkdir -p ${dir}
     chmod 700 ${dir}
