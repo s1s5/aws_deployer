@@ -3,8 +3,8 @@
 
 ``` shell
 mkvirtualenv --no-site-packages deployer -p /usr/bin/python2.7
-# socatも使ってるので入れておく
-sudo apt-get install python-dev libssl-dev socat
+# 利用するパッケージのインストール
+sudo apt-get install python-dev libssl-dev
 ```
 
 # 初期設定
@@ -20,7 +20,7 @@ export PATH="$PATH:<deployer install dir>/bin"
 $ rfab -H localhost ping
 ```
 
-### bash_complete
+### bash_completeを使いたい場合
 
 ``` shell
 _ssh_config ()
@@ -30,52 +30,7 @@ _ssh_config ()
 complete -F _ssh_config ransible rdocker docker-connect docker-disconnect
 ```
 
-## test login
-```
-rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** ping
-```
-
-## set AWS EC2
-```
-rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** setup_aws_ec2:`whoami`
-```
-上記コマンドで、AWSのインスタンスを初期化する。
-1. ユーザーの追加を行う
-2. id_rsaの生成
-3. authorized_keysに追加
-4. sudoersにそのユーザーを追加(adminグループに追加)
-
-
-### 実行後
-#### ログででてきたものを~/.ssh/configに以下を追加
-以下参考
-
-```
-host <host alias>
-     User username
-     Hostname 52.87.***.***
-     Port 22
-     IdentityFile ~/.ssh/ubuntu_52.87.***.***_id_rsa
-     IdentitiesOnly yes
-```
-
-#### sshしてみる
-```
-$ ssh <host alias>
-
-sign_and_send_pubkey: signing failed: agent refused operation
-
-# 上記のエラーが出た場合には以下のコマンド
-$ ssh-add ~/.ssh/ubuntu_52.87.***.***_id_rsa # <= 作成されたid_rsa
-```
-
-
-### 最後にデフォルトで作成されるubuntuを削除する
-```
-$ rfab -H <host alias> user_del:ubuntu
-```
-
-# OSのいろいろな設定を行っておく
+# パッケージのインストール等
 - ネットワーク周りの設定、不要なサービスのアンインストール
 - fluentd、dockerのインストール
 - ※AIDE, PSADがまだちゃんと動いていなさそう。。
@@ -87,35 +42,56 @@ $ ransible -s <slack_url> <host alias>
 # slack_urlを追加すると/usr/local/bin/alert_to_slack.shが追加される
 ```
 
+## test login
+```
+rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** ping
+```
+
+# ユーザーの登録、デフォルトユーザーの削除
+```
+rfab -i ~/.ssh/hogehgoe.pem  -H ubuntu@52.87.***.*** setup_aws_ec2:`whoami`
+```
+上記コマンドで、AWSのインスタンスを初期化する。
+1. ユーザーの追加を行う
+2. id_rsaの生成
+3. authorized_keysに追加
+4. sudoersにそのユーザーを追加(adminグループに追加)
+
+
+## 実行後
+### ログででてきたものを~/.ssh/configに以下を追加
+以下参考
+
+```
+host <host alias>
+     User username
+     Hostname 52.87.***.***
+     Port 22
+     IdentityFile ~/.ssh/ubuntu_52.87.***.***_id_rsa
+     IdentitiesOnly yes
+```
+
+### sshしてみる
+```
+$ ssh <host alias>
+
+sign_and_send_pubkey: signing failed: agent refused operation
+
+# 上記のエラーが出た場合には以下のコマンド
+$ ssh-add ~/.ssh/ubuntu_52.87.***.***_id_rsa # <= 作成されたid_rsa
+```
+
+
+## 最後にデフォルトで作成されるubuntuを削除する
+```
+$ rfab -H <host alias> user_del:ubuntu
+```
+
 # rdocker
-
-## single host
 ``` shell
-$ python rdocker <host alias>
-# /var/run/docker.sockをトンネルしてローカルに持ってくる
-(-> <host>) $ docker ps # <= リモートのdockerに接続!
-
-# shellを変えずに接続
-$ eval `rdocker --connect-only <host alias>`
-$ unset DOCKER_HOST  # 接続中止
+$ eval `rdocker <host alias>`
+$ docker info
 ```
-
-## multiple host
-
-``` shell
-$ python rdocker <host alias0> <host alias1> <host alias2>
-```
-
-## set environment only
-
-``` shell
-
-$ eval `docker-connect <host alias>`
-
-$ eval `docker-disconnect <host alias>`
-
-```
-
 
 # dc-deploy
 
@@ -165,15 +141,12 @@ override:  # docker compose設定を上書きする時はココになんか書�
 
 ``` shell
 $ dc-deploy deploy.yml
-
-# deperecated
-$ orche deploy.yml
 ```
 
 # ディスク容量が10%切ったらslackへ報告するshを追加する
-```$ rfab install_warn_to_slack:[slack webhook url],[channel],[監視するディスク] -H [hostname]```
+```$ rfab install_disk_usage_alert:[slack webhook url],[channel],[監視するディスク] -H [hostname]```
 
-/etc/crontabに登録され、30分おきにディスク容量をチェックし10%切ったら指定されたslack urlにメッセージを飛ばす。
+/etc/crontabに登録され、のこり30分おきにディスク容量をチェックし10%切ったら指定されたslack urlにメッセージを飛ばす。
 - [slack webhook url] slackのwebhookのURL(省略不可)
 - [channel] slack channel 省略時 #random
 - [監視するディスク] 省略時 /
