@@ -22,6 +22,6 @@ fi
 start-stop-daemon --start --make-pidfile --pidfile ${PIDFILE} \
                   --background --user ${USER} \
                   --exec /bin/bash -- -c \
-                  "exec $DAEMON $DAEMON_ARGS >> /tmp/hoge.log 2>&1"
+                  "exec ${DAEMON} ${DAEMON_ARGS} >> ${dir}/daemon.log 2>&1"
 
 echo "export DOCKER_HOST=unix://${new_docker_host}"
