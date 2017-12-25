@@ -1,7 +1,28 @@
+- name: remove docker.io
+  apt: name={{ item }} purge=yes state=absent
+  with_items:
+    - docker.io
+    - docker
+    - docker-engine
+
+- name: install prerequisite packages
+  apt: name={{ item }} update_cache=yes  state=installed
+  with_items:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - software-properties-common
+
+- name: add APT signing key for docker-ce
+  apt_key: url=https://download.docker.com/linux/ubuntu/gpg state=present
+
+- name: add docker-ce repository
+  apt_repository: repo="deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release|lower }} stable" state=present
+
 - name: install docker
   apt: name={{ item }} update_cache=yes  state=installed
   with_items:
-    - docker.io
+    - docker-ce
     - lvm2
 
 - name: copy daemon.json
