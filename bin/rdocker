@@ -1,6 +1,27 @@
 #!/bin/bash
 # -*- mode: shell-script -*-
 
+
+usage_exit() {
+        echo "Usage: $0 [-h] [-H] <host alias>" 1>&2
+        exit 1
+}
+
+FLAG_HOSTNAME_ONLY=0
+while getopts Hh OPT
+do
+    case $OPT in
+        H)  FLAG_HOSTNAME_ONLY=1
+            ;;
+        h)  usage_exit
+            ;;
+        \?) usage_exit
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+
 if [ $# == 0 ]; then
     echo "unset DOCKER_HOST"
     exit 0
@@ -18,11 +39,15 @@ script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 PIDFILE=${dir}/${1}.pid
 DAEMON=${script_dir}/run_daemon.sh
 DAEMON_ARGS="${new_docker_host} ${1}"
+PREFIX="export DOCKER_HOST=unix://"
+if [ $FLAG_HOSTNAME_ONLY = 1 ]; then
+    PREFIX="unix://"
+fi
 
 if [ -e ${new_docker_host} ]; then
     docker -H "unix://${new_docker_host}" info &> /dev/null
     if [ $? == 0 ]; then
-        echo "export DOCKER_HOST=unix://${new_docker_host}"
+        echo "${PREFIX}${new_docker_host}"
         exit 0
     fi
     start-stop-daemon --stop --pidfile ${PIDFILE} --quiet
@@ -34,4 +59,4 @@ start-stop-daemon --start --make-pidfile --pidfile ${PIDFILE} \
                   --exec /bin/bash -- -c \
                   "exec ${DAEMON} ${DAEMON_ARGS} >> ${dir}/daemon.log 2>&1"
 
-echo "export DOCKER_HOST=unix://${new_docker_host}"
+echo "${PREFIX}${new_docker_host}"

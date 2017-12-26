@@ -89,17 +89,23 @@ $ rfab -H <host alias> user_del:ubuntu
 
 # rdocker
 ``` shell
+# exec rdocker, connect to other host
 $ rdocker <host alias>
 export DOCKER_HOST=unix:///tmp/docker-sawai/cluster_001.sock
 
+# set DOCKER_HOST environment variable
 $ eval `rdocker <host alias>`
 $ docker info  # remote hostのdockerサーバーに繋がる
 
-# ローカルにもどる
+# - ローカルにもどる
 $ unset DOCKER_HOST
+$ eval `rdocker`
 
-# docker groupに所属している必要があるので、所属していない場合、以下を実行しておく
+# - docker groupに所属している必要があるので、所属していない場合、以下を実行しておく
 $ sudo usermod -G admin,docker `whoami`
+
+# - set your own alias
+$ alias docker-gateway='docker -H `rdocker -H cluster_gateway`'
 ```
 
 # dc-deploy
