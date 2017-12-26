@@ -43,6 +43,21 @@
   notify:
     - restart docker
 
+# - name: set INIT status and start plugin
+#   service: name=docker state=started enabled=yes
+
+# - name: download netshare plugin
+#   get_url: url="https://github.com/ContainX/docker-volume-netshare/releases/download/v0.20/docker-volume-netshare_0.20_amd64.deb" dest=/tmp
+
+# - name: Install a .deb package
+#   apt:
+#     deb: /tmp/docker-volume-netshare_0.20_amd64.deb
+#   notify:
+#     - restart docker
+
+# - name: set INIT status and start plugin
+#   service: name=docker-volume-netshare state=started enabled=yes
+
 - name: check audit rules
   lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/audit/audit.rules state=present
   with_items:
