@@ -89,8 +89,14 @@ $ rfab -H <host alias> user_del:ubuntu
 
 # rdocker
 ``` shell
+$ rdocker <host alias>
+export DOCKER_HOST=unix:///tmp/docker-sawai/cluster_001.sock
+
 $ eval `rdocker <host alias>`
-$ docker info
+$ docker info  # remote hostのdockerサーバーに繋がる
+
+# ローカルにもどる
+$ unset DOCKER_HOST
 
 # docker groupに所属している必要があるので、所属していない場合、以下を実行しておく
 $ sudo usermod -G admin,docker `whoami`

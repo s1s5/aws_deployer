@@ -20,6 +20,11 @@ DAEMON=${script_dir}/run_daemon.sh
 DAEMON_ARGS="${new_docker_host} ${1}"
 
 if [ -e ${new_docker_host} ]; then
+    docker -H "unix://${new_docker_host}" info &> /dev/null
+    if [ $? == 0 ]; then
+        echo "export DOCKER_HOST=unix://${new_docker_host}"
+        exit 0
+    fi
     start-stop-daemon --stop --pidfile ${PIDFILE} --quiet
     rm -f ${new_docker_host}
 fi

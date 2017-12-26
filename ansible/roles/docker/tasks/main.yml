@@ -1,5 +1,5 @@
 - name: remove docker.io
-  apt: name={{ item }} purge=yes state=absent
+  apt: name={{ item }} state=absent
   with_items:
     - docker.io
     - docker
