@@ -54,6 +54,14 @@ if [ -e ${new_docker_host} ]; then
     rm -f ${new_docker_host}
 fi
 
+ssh ${1} docker -H unix:///var/run/docker.sock version &> /dev/null
+if [ $? != 0 ]; then
+    echo 'could not connect to docker in remote host. Please check config' 1>&2
+    echo 'You must be able to run "docker -H unix:///var/run/docker.sock version" without sudo in remote host' 1>&2
+    exit 1
+fi
+# need to check ssh version must be >= 6.7
+
 start-stop-daemon --start --make-pidfile --pidfile ${PIDFILE} \
                   --background --user ${USER} \
                   --exec /bin/bash -- -c \
