@@ -24,10 +24,10 @@ from compose.service import BuildAction
 from compose.service import ConvergenceStrategy
 from compose.project import ProjectError
 
-from docker_tools import docker_tunnel
+# from docker_tools import docker_tunnel
 
 logger = logging.getLogger(__name__)
-
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 env.forward_agent = True
 env.use_ssh_config = True
@@ -181,9 +181,9 @@ class Orchestra(object):
         self.temp_files.append(tmp_filename)
         self.conf_dict['compose_files'].append(tmp_filename)
 
-    def getSock(self, hostname):
-        base = os.path.join('/tmp', 'docker-{}'.format(os.environ['USER']))
-        return 'unix://{}'.format(os.path.join(base, '{}.sock'.format(hostname)))
+    # def getSock(self, hostname):
+    #     base = os.path.join('/tmp', 'docker-{}'.format(os.environ['USER']))
+    #     return 'unix://{}'.format(os.path.join(base, '{}.sock'.format(hostname)))
 
     def getProject(self, host=None):
         project = load_compose_settings(
@@ -208,9 +208,8 @@ class Orchestra(object):
         return base
 
     def start(self):
-        for hostname in self.hosts:
-            docker_tunnel.connect(hostname)
-
+        # for hostname in self.hosts:
+        #     docker_tunnel.connect(hostname)
         # services = {}
         # for service in self.default_project.services:
         #     release_id = service.build() if service.can_be_built() else service.image_name
@@ -222,8 +221,10 @@ class Orchestra(object):
         #     }
         # self.addConfig(self.config_data, services)
 
-        self.projects = {host: self.getProject(self.getSock(host))
-                         for host in self.hosts}
+        self.projects = {
+            host: subprocess.check_output(
+                [os.path.join(script_dir, 'bin', 'rdocker'), '-H', host]).split()
+            for host in self.hosts}
 
     def end(self):
         [os.remove(x) for x in self.temp_files]
