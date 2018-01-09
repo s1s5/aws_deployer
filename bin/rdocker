@@ -88,6 +88,6 @@ docker run -d \
        -e GROUP=`id -n -g` \
        -v /home/`id -n -u`/.ssh:/home/`id -n -u`/.ssh \
        -v ${SOCK_DIR}:${SOCK_DIR} \
-       s1s5/docker_sshclient -N -L ${NEW_DOCKER_HOST}:/var/run/docker.sock $1
+       s1s5/docker_sshclient -N -L ${NEW_DOCKER_HOST}:/var/run/docker.sock $1 > /dev/null
 
 echo "${PREFIX}${NEW_DOCKER_HOST}"
