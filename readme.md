@@ -102,7 +102,7 @@ $ unset DOCKER_HOST
 $ eval `rdocker`
 
 # - docker groupに所属している必要があるので、所属していない場合、以下を実行しておく
-$ sudo usermod -G admin,docker `whoami`
+$ sudo usermod -G `id -Gn | sed s'/ /,/'g`,docker `whoami`
 
 # - set your own alias
 $ alias docker-gateway='docker -H `rdocker -H cluster_gateway`'
