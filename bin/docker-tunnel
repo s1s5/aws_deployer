@@ -1,0 +1,22 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+SOCK_DIR=/tmp/docker-${USER}
+if [ ! -e ${SOCK_DIR} ]; then
+    mkdir -p ${SOCK_DIR}
+    chmod 700 ${SOCK_DIR}
+fi
+
+NEW_DOCKER_HOST=${SOCK_DIR}/${1}.sock
+
+if [ -e ${NEW_DOCKER_HOST} ]; then
+    docker -H "unix://${NEW_DOCKER_HOST}" info &> /dev/null
+    if [ $? == 0 ]; then
+        echo "export DOCKER_HOST=unix://${NEW_DOCKER_HOST}"
+        exit 0
+    fi
+    rm -f ${NEW_DOCKER_HOST}
+fi
+
+echo "export DOCKER_HOST=unix://${NEW_DOCKER_HOST}"
+ssh -f -N -L ${NEW_DOCKER_HOST}:/var/run/docker.sock ${1}

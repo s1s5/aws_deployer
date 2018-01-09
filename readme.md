@@ -108,6 +108,24 @@ $ sudo usermod -G `id -Gn | sed s'/ /,/'g`,docker `whoami`
 $ alias docker-gateway='docker -H `rdocker -H cluster_gateway`'
 ```
 
+## うまく動作しない場合
+``` shell
+$ docker-tunnel <host alias>
+
+# 別のターミナルで
+$ docker -H unix:///tmp/docker-<user>/<host alias>.sock ...
+```
+
+``` shell
+$ ssh -f -N -L /tmp/<host alias>.sock:/var/run/docker.sock <host alias>
+
+# 下記どちらかで接続できるようになる
+$ docker -H unix:///tmp/<host alias>.sock ...
+
+$ export DOCKER_HOST=unix:///tmp/<host alias>.sock
+$ docker ...
+```
+
 # dc-deploy
 
 ``` yaml
