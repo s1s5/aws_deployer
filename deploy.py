@@ -222,8 +222,8 @@ class Orchestra(object):
         # self.addConfig(self.config_data, services)
 
         self.projects = {
-            host: subprocess.check_output(
-                [os.path.join(script_dir, 'bin', 'rdocker'), '-H', host]).split()
+            host: self.getProject(subprocess.check_output(
+                [os.path.join(script_dir, 'bin', 'rdocker'), '-H', host]).strip())
             for host in self.hosts}
 
     def end(self):
