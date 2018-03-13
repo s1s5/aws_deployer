@@ -7,6 +7,8 @@ usage_exit() {
         exit 1
 }
 
+unset DOCKER_HOST
+
 FLAG_HOSTNAME_ONLY=0
 CLOSE_CONNECTION=0
 while getopts Hhc OPT
