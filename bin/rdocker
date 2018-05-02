@@ -46,50 +46,97 @@ if [ ${CLOSE_CONNECTION} == 1 ]; then
     exit 0
 fi
 
-SOCK_DIR=/tmp/docker-${USER}
-if [ ! -e ${SOCK_DIR} ]; then
-    mkdir -p ${SOCK_DIR}
-    chmod 700 ${SOCK_DIR}
-fi
-
-NEW_DOCKER_HOST=${SOCK_DIR}/${1}.sock
-
-script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
-PREFIX="export DOCKER_HOST=unix://"
-if [ $FLAG_HOSTNAME_ONLY = 1 ]; then
-    PREFIX="unix://"
-fi
-
-if [ -e ${NEW_DOCKER_HOST} ]; then
-    docker -H "unix://${NEW_DOCKER_HOST}" info &> /dev/null
-    if [ $? == 0 ]; then
-        echo "${PREFIX}${NEW_DOCKER_HOST}"
-        exit 0
+if [ "$(uname)" == 'Darwin' ]; then
+    PREFIX="export DOCKER_HOST=tcp://127.0.0.1:"
+    if [ $FLAG_HOSTNAME_ONLY = 1 ]; then
+        PREFIX="tcp://127.0.0.1:"
     fi
-    rm -f ${NEW_DOCKER_HOST}
+
+    if [ "`docker ps -aq --filter name=${CONTAINER_NAME} 2> /dev/null`" != "" ]; then
+        TEST_PORT=`docker port docker_ssh_tunnel_cluster_gateway | python -c "import sys; print(sys.stdin.read().split('/')[0])"`
+        docker -H "tcp://127.0.0.1:${TEST_PORT}" info &> /dev/null
+        if [ $? == 0 ]; then
+            echo "${PREFIX}${TEST_PORT}"
+            exit 0
+        fi
+    fi
+
+    if [ "`docker ps -aq --filter name=${CONTAINER_NAME} 2> /dev/null`" != "" ]; then
+        docker stop ${CONTAINER_NAME} > /dev/null
+        docker rm ${CONTAINER_NAME} > /dev/null
+    fi
+    
+    ssh ${1} docker -H unix:///var/run/docker.sock version &> /dev/null
+    if [ $? != 0 ]; then
+        echo 'could not connect to docker in remote host. Please check config' 1>&2
+        echo 'You must be able to run "docker -H unix:///var/run/docker.sock version" without sudo in remote host' 1>&2
+        exit 1
+    fi
+    # need to check ssh version must be >= 6.7
+    
+    NEW_DOCKER_HOST=`jot -r 1 10000 65000`
+    docker run -d \
+           --name ${CONTAINER_NAME} \
+           -e USER_ID=`id -u` \
+           -e GROUP_ID=`id -g` \
+           -e USER=`id -n -u` \
+           -e GROUP=`id -n -g` \
+           -v ${HOME}/.ssh:/home/`id -n -u`/.ssh \
+           -p ${NEW_DOCKER_HOST}:${NEW_DOCKER_HOST} \
+           s1s5/docker_sshclient -N -L 0.0.0.0:${NEW_DOCKER_HOST}:/var/run/docker.sock $1 > /dev/null
+
+elif [ "$(expr substr $(uname -s) 1 5)" == 'Linux' ]; then
+    SOCK_DIR=/tmp/docker-${USER}
+    if [ ! -e ${SOCK_DIR} ]; then
+        mkdir -p ${SOCK_DIR}
+        chmod 700 ${SOCK_DIR}
+    fi
+    
+    NEW_DOCKER_HOST=${SOCK_DIR}/${1}.sock
+    
+    PREFIX="export DOCKER_HOST=unix://"
+    if [ $FLAG_HOSTNAME_ONLY = 1 ]; then
+        PREFIX="unix://"
+    fi
+    
+    if [ -e ${NEW_DOCKER_HOST} ]; then
+        docker -H "unix://${NEW_DOCKER_HOST}" info &> /dev/null
+        if [ $? == 0 ]; then
+            echo "${PREFIX}${NEW_DOCKER_HOST}"
+            exit 0
+        fi
+        rm -f ${NEW_DOCKER_HOST}
+    fi
+    
+    if [ "`docker ps -aq --filter name=${CONTAINER_NAME} 2> /dev/null`" != "" ]; then
+        docker stop ${CONTAINER_NAME} > /dev/null
+        docker rm ${CONTAINER_NAME} > /dev/null
+    fi
+    
+    ssh ${1} docker -H unix:///var/run/docker.sock version &> /dev/null
+    if [ $? != 0 ]; then
+        echo 'could not connect to docker in remote host. Please check config' 1>&2
+        echo 'You must be able to run "docker -H unix:///var/run/docker.sock version" without sudo in remote host' 1>&2
+        exit 1
+    fi
+    # need to check ssh version must be >= 6.7
+    
+    docker run -d \
+           --name ${CONTAINER_NAME} \
+           -e USER_ID=`id -u` \
+           -e GROUP_ID=`id -g` \
+           -e USER=`id -n -u` \
+           -e GROUP=`id -n -g` \
+           -v ${HOME}/.ssh:/home/`id -n -u`/.ssh \
+           -v ${SOCK_DIR}:${SOCK_DIR} \
+           s1s5/docker_sshclient -N -L ${NEW_DOCKER_HOST}:/var/run/docker.sock $1 > /dev/null
+
+# elif [ "$(expr substr $(uname -s) 1 10)" == 'MINGW32_NT' ]; then
+#     OS='Cygwin'
+else
+  echo "Your platform ($(uname -a)) is not supported."
+  exit 1
 fi
 
-if [ "`docker ps -aq --filter name=${CONTAINER_NAME} 2> /dev/null`" != "" ]; then
-    docker stop ${CONTAINER_NAME} > /dev/null
-    docker rm ${CONTAINER_NAME} > /dev/null
-fi
-
-ssh ${1} docker -H unix:///var/run/docker.sock version &> /dev/null
-if [ $? != 0 ]; then
-    echo 'could not connect to docker in remote host. Please check config' 1>&2
-    echo 'You must be able to run "docker -H unix:///var/run/docker.sock version" without sudo in remote host' 1>&2
-    exit 1
-fi
-# need to check ssh version must be >= 6.7
-
-docker run -d \
-       --name ${CONTAINER_NAME} \
-       -e USER_ID=`id -u` \
-       -e GROUP_ID=`id -g` \
-       -e USER=`id -n -u` \
-       -e GROUP=`id -n -g` \
-       -v ${HOME}/.ssh:/home/`id -n -u`/.ssh \
-       -v ${SOCK_DIR}:${SOCK_DIR} \
-       s1s5/docker_sshclient -N -L ${NEW_DOCKER_HOST}:/var/run/docker.sock $1 > /dev/null
 
 echo "${PREFIX}${NEW_DOCKER_HOST}"
