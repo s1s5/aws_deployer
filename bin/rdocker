@@ -90,7 +90,7 @@ if [ "$(uname)" == 'Darwin' ]; then
         mkdir -p ${SOCK_DIR}
         chmod 700 ${SOCK_DIR}
     fi
-    echo ${CONTAINER_NAME} > ${SOCK_DIR}/${NEW_DOCKER_HOST}.port
+    echo ${1} > ${SOCK_DIR}/${NEW_DOCKER_HOST}.port
 
 elif [ "$(expr substr $(uname -s) 1 5)" == 'Linux' ]; then
     SOCK_DIR=/tmp/docker-${USER}
