@@ -85,6 +85,13 @@ if [ "$(uname)" == 'Darwin' ]; then
            -p ${NEW_DOCKER_HOST}:${NEW_DOCKER_HOST} \
            s1s5/docker_sshclient -N -L 0.0.0.0:${NEW_DOCKER_HOST}:/var/run/docker.sock $1 > /dev/null
 
+    SOCK_DIR=/tmp/docker-${USER}
+    if [ ! -e ${SOCK_DIR} ]; then
+        mkdir -p ${SOCK_DIR}
+        chmod 700 ${SOCK_DIR}
+    fi
+    echo ${CONTAINER_NAME} > ${SOCK_DIR}/${NEW_DOCKER_HOST}.port
+
 elif [ "$(expr substr $(uname -s) 1 5)" == 'Linux' ]; then
     SOCK_DIR=/tmp/docker-${USER}
     if [ ! -e ${SOCK_DIR} ]; then
