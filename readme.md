@@ -15,6 +15,22 @@ sudo apt-get install python-dev libssl-dev
 ## e.g) export PATH="$PATH:${HOME}/work/deployer/bin"
 export PATH="$PATH:<deployer install dir>/bin"
 
+## 今のdocker hostを表示
+function __print_docker_host {
+    if [[ ${IN_RDOCKER}"" = "true" ]]; then
+        return
+    fi
+
+    if [[ ${DOCKER_HOST} =~ ^unix\:\/\/\/tmp\/docker-${USER}\/(.+)\.sock$ ]]; then
+        echo "[docker->${BASH_REMATCH[1]}]"
+    fi
+
+    if [[ ${DOCKER_HOST} =~ ^tcp\:\/\/127.0.0.1\:(.+)$ ]]; then
+        echo "[docker->`cat /tmp/docker-${USER}/${BASH_REMATCH[1]}.port`]"
+    fi
+}
+export PS1='\h`__print_docker_host``__git_ps1` `date "+[%y/%m/%d(%H:%M:%S)]":`\w$ '
+
 
 ## 以下のコマンドが使えるように
 $ rfab -H localhost ping
