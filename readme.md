@@ -87,6 +87,11 @@ $ ssh-add ~/.ssh/ubuntu_52.87.***.***_id_rsa # <= 作成されたid_rsa
 $ rfab -H <host alias> user_del:ubuntu
 ```
 
+## ユーザー作成
+```
+$ rfab -H <host alias> user_add:<user name>,<id_rsa path>
+```
+
 # rdocker
 ``` shell
 # exec rdocker, connect to other host
