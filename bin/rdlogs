@@ -2,7 +2,7 @@
 # -*- mode: shell-script -*-
 
 usage_exit() {
-        echo "Usage: $0 [-h] [-ti] <service_name> commands" 1>&2
+        echo "Usage: $0 [-h] [-ftT] <service_name> commands" 1>&2
         exit 1
 }
 
@@ -10,12 +10,14 @@ script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 
 exec_opts=""
 service_number=1
-while getopts htin: OPT
+while getopts T:hft:n: OPT
 do
     case $OPT in
+        f)  exec_opts="-f ${exec_opts}"
+            ;;
         t)  exec_opts="-t ${exec_opts}"
             ;;
-        i)  exec_opts="-i ${exec_opts}"
+        T)  exec_opts="--tail ${OPTARG:all} ${exec_opts}"
             ;;
         n)  service_number=$OPTARG
             ;;
@@ -37,4 +39,4 @@ docker_host=`${script_dir}/rdocker -H ${node_name}`
 docker_container=`docker -H ${docker_host} ps -f name=${1}.*.* -q`
 
 shift
-docker -H ${docker_host} exec ${exec_opts} ${docker_container} $@
+docker -H ${docker_host} logs ${exec_opts} ${docker_container} $@
