@@ -129,6 +129,18 @@ $ sudo usermod -G `id -Gn | sed s'/ /,/'g`,docker `whoami`
 $ alias docker-gateway='docker -H `rdocker -H cluster_gateway`'
 ```
 
+## rdexec (tool for swarm)
+``` shell
+$ rdexec -t -i <service_name> <commands>
+
+$ rdexec -t -i -n 2 <service_name> <commands> ## run with second service container
+```
+
+## rdlogs (tool for swarm)
+``` shell
+$ rdlogs -t -f -T 100 <service_name>
+```
+
 ## うまく動作しない場合
 ``` shell
 $ docker-tunnel <host alias>
@@ -147,7 +159,7 @@ $ export DOCKER_HOST=unix:///tmp/<host alias>.sock
 $ docker ...
 ```
 
-# dc-deploy
+# dc-deploy "obsolete"
 
 ``` yaml
 project: "<myproject>"
