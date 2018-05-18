@@ -10,7 +10,7 @@ script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
 
 exec_opts=""
 service_number=1
-while getopts T:hft:n: OPT
+while getopts T:hftn: OPT
 do
     case $OPT in
         f)  exec_opts="-f ${exec_opts}"
