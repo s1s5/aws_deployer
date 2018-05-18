@@ -1,0 +1,37 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+usage_exit() {
+        echo "Usage: $0 [-h] [-ti] <service_name> commands" 1>&2
+        exit 1
+}
+
+script_dir=$(cd $(dirname ${BASH_SOURCE:-$0}); pwd)
+
+exec_opts=""
+while getopts hti OPT
+do
+    case $OPT in
+        t)  exec_opts="-t ${exec_opts}"
+            ;;
+        i)  exec_opts="-i ${exec_opts}"
+            ;;
+        h)  usage_exit
+            ;;
+        \?) usage_exit
+            ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+node_name=`docker service ps ${1} --filter "name=${1}.1" --filter desired-state=running --format "{{ .Node }}@{{ .CurrentState }}" | grep Running | head -n 1 | sed 's/\@.*//'`
+if [ ""${node_name} = "" ]; then
+   echo "could not find service : ${1}.1"
+   exit 1
+fi
+
+docker_host=`${script_dir}/rdocker -H ${node_name}`
+docker_container=`docker -H ${docker_host} ps -f name=${1}.*.* -q`
+
+shift
+docker -H ${docker_host} exec ${exec_opts} ${docker_container} $@
