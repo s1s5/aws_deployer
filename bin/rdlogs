@@ -36,7 +36,7 @@ if [ ""${node_name} = "" ]; then
 fi
 
 docker_host=`${script_dir}/rdocker -H ${node_name}`
-docker_container=`docker -H ${docker_host} ps -f name=${1}.*.* -q`
+docker_container=`docker -H ${docker_host} ps -f name=${1}.[0-9]+.* -q`
 
 shift
 docker -H ${docker_host} logs ${exec_opts} ${docker_container} $@
