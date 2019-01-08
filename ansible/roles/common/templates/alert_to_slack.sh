@@ -1,13 +1,15 @@
 #!/bin/sh
+# -*- mode: shell-script -*-
 
 set -eu
 
 #Incoming WebHooksのURL
-WEBHOOKURL="{{ SLACK_URL }}"
+TOKEN="{{ TOKEN }}"
+WEBHOOKURL="https://slack.com/api/chat.postMessage"
 #メッセージを保存する一時ファイル
 MESSAGEFILE=$(mktemp -t webhooks.XXXXXXXXXXXXXXXXXXXXX)
 trap "
-rm ${MESSAGEFILE}
+rm -f ${MESSAGEFILE}
 " 0
 
 usage_exit() {
@@ -56,6 +58,6 @@ fi
 WEBMESSAGE='>>>'`cat ${MESSAGEFILE}`
 
 #Incoming WebHooks送信
-curl -s -S -X POST --data-urlencode "payload={\"channel\": \"${CHANNEL}\", \"username\": \"${BOTNAME}\", \"icon_emoji\": \"${FACEICON}\", \"text\": \"${MESSAGE}${WEBMESSAGE}\" }" ${WEBHOOKURL} > /dev/null
+curl -X POST -d "token=${TOKEN}" -d "channel=${CHANNEL}" -d "text=${MESSAGE}${WEBMESSAGE}" -d "username=${BOTNAME}" ${WEBHOOKURL}
 
 rm ${MESSAGEFILE}
