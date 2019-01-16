@@ -1,0 +1,12 @@
+#!/bin/bash
+# -*- mode: shell-script -*-
+
+docker run --rm \
+       -t -i \
+       -e USER_ID=`id -u` \
+       -e GROUP_ID=`id -g` \
+       -e USER=`id -n -u` \
+       -e GROUP=`id -n -g` \
+       -v ${HOME}/.ssh:/home/`id -n -u`/.ssh \
+       -v /home/`id -n -u`/.ansible:/home/`id -n -u`/.ansible \
+       s1s5/aws_deployer ransible $*

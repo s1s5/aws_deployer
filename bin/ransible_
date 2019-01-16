@@ -1,6 +1,8 @@
 #!/bin/bash
 # -*- mode: shell-script -*-
 
+set -e
+
 script_dir=/opt/aws_deployer/bin
 pushd `pwd` > /dev/null
 cd ${script_dir}/..
@@ -34,8 +36,7 @@ for ((i = 1; i < ${#args[@]}; i++)) {
         hosts="${hosts},${args[i]}"
 }
 
-#EXTRA_VARS="ansible_python_interpreter=/usr/bin/python2.7"
-EXTRA_VARS=""
+EXTRA_VARS="ansible_python_interpreter=/usr/bin/python2.7"
 if [ ${SLACK_URL}"" != "" ]; then
     EXTRA_VARS="${EXTRA_VARS} SLACK_URL=${SLACK_URL}"
 fi

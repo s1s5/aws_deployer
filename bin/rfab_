@@ -1,6 +1,8 @@
 #!/bin/bash
 # -*- mode: shell-script -*-
 
+set -e
+
 # set -eu  # <= 0以外が返るものがあったら止まる, 未定義の変数を使おうとしたときに打ち止め
 
 script_dir=/opt/aws_deployer/bin
