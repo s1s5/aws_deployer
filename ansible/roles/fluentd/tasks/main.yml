@@ -10,7 +10,8 @@
 - name: install apt-related binaries for Ansible to work
   apt: name={{ item }}  state=present update_cache=yes
   with_items:
-    - python-software-properties
+#    - python-software-properties
+    - software-properties-common
     - apt-transport-https
 
 - name: add APT signing key for td-agent

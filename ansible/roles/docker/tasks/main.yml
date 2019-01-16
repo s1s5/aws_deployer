@@ -73,24 +73,24 @@
   lineinfile: regexp={{ item.re }} line={{ item.line }} dest=/etc/profile insertafter=EOF state=present
   with_items:
     - { re: "^export DOCKER_CONTENT_TRUST=1", line: "export DOCKER_CONTENT_TRUST=1" }
-    
-- name: copy check_docker.py
-  copy:
-    src: check_docker.py
-    dest: /opt/stat_tools/check_docker.py
-    owner: td-agent
-    group: td-agent
-    mode: 0644
 
-- name: copy fluentd conf
-  copy:
-    src:  fluentd_30-docker.conf
-    dest: /etc/td-agent/conf.d/30-docker.conf
-    owner: td-agent
-    group: td-agent
-    mode: 0644
-  notify:
-    - restart td-agent
+# - name: copy check_docker.py
+#   copy:
+#     src: check_docker.py
+#     dest: /opt/stat_tools/check_docker.py
+#     owner: td-agent
+#     group: td-agent
+#     mode: 0644
+
+# - name: copy fluentd conf
+#   copy:
+#     src:  fluentd_30-docker.conf
+#     dest: /etc/td-agent/conf.d/30-docker.conf
+#     owner: td-agent
+#     group: td-agent
+#     mode: 0644
+#   notify:
+#     - restart td-agent
 
 - name: copy logrotate conf
   copy:

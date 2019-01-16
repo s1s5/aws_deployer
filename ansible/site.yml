@@ -3,5 +3,4 @@
   become: yes
   roles:
     - common
-    - fluentd
     - docker
