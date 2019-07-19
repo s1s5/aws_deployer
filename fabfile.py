@@ -7,10 +7,12 @@ import re
 import getpass
 import os
 import paramiko
+import io
 
 from fabric.decorators import task
 from fabric.state import env
-from fabric.api import settings, run, sudo, local, put, hide, warn_only, runs_once  # prompt
+from fabric.api import (settings, run, sudo, local, put,
+                        hide, warn_only, runs_once)  # prompt
 from fabric.utils import puts
 from fabric.context_managers import shell_env
 from fabric.contrib.files import append, exists
@@ -84,7 +86,7 @@ def user_add(username, id_rsa_pub, sudoer=True):
         res = sudo("grep -c '^{}:' /etc/passwd".format(username))
     if res.return_code:
         if id_rsa_pub is None:
-            hoststring = re.sub('[^\w\-_\. ]', '_', env['host_string']) + '_'
+            hoststring = re.sub(r'[^\w\-_\. ]', '_', env['host_string']) + '_'
             local('ssh-keygen -t rsa  -f ~/.ssh/{}id_rsa'.format(hoststring))
             id_rsa_pub = '~/.ssh/{}id_rsa.pub'.format(hoststring)
             id_rsa = '~/.ssh/{}id_rsa'.format(hoststring)
@@ -113,7 +115,8 @@ def user_add(username, id_rsa_pub, sudoer=True):
                 use_sudo=True)
             sudo('chmod 700 /home/{}/.ssh'.format(username))
             sudo('chmod 600 /home/{}/.ssh/authorized_keys'.format(username))
-            sudo('chown -R {username}:dev /home/{username}'.format(username=username))
+            sudo('chown -R {username}:dev /home/{username}'.format(
+                username=username))
             puts('#### add following lines to ~/.ssh/config ####')
             puts('host <host alias>')
             puts('    User {}'.format(username))
@@ -122,7 +125,7 @@ def user_add(username, id_rsa_pub, sudoer=True):
             puts('    IdentityFile {}'.format(id_rsa))
             puts('    IdentitiesOnly yes')
             puts('#    ProxyCommand  ssh -W %h:%p <gateway>')
-        except:
+        except Exception:
             sudo('deluser {}'.format(username))
             raise
 
@@ -139,7 +142,8 @@ def update_id_rsa_pub(username, id_rsa_pub):
         '/home/{}/.ssh/authorized_keys'.format(username),
         use_sudo=True)
     sudo('chmod 600 /home/{}/.ssh/authorized_keys'.format(username))
-    sudo('chown -R {username}:dev /home/{username}/.ssh/authorized_keys'.format(username=username))
+    sudo('chown -R {username}:dev '
+         '/home/{username}/.ssh/authorized_keys'.format(username=username))
 
 
 @task
@@ -148,7 +152,8 @@ def setup_nat_instance():
     sudo('sysctl -w net.ipv4.ip_forward=1')
     sudo('sysctl -p')
     # TODO: あるかどうかチェックして追加しないと・・・
-    sudo('/sbin/iptables -t nat -A POSTROUTING -o eth0 -s 0.0.0.0/0 -j MASQUERADE')
+    sudo('/sbin/iptables -t nat -A POSTROUTING '
+         '-o eth0 -s 0.0.0.0/0 -j MASQUERADE')
     sudo('netfilter-persistent save')
 
 
@@ -179,12 +184,27 @@ def create_swap(size='1G', filename='/swapfile'):
 
 
 @task
-def install_disk_usage_alert(slack_url="https://hooks.slack.com/services/DUMMY",
-                             slack_chanel="#alert", watch_disk="/"):
-    sh = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bin', 'warn_to_slack.sh')
-    put(sh, "/usr/local/bin", use_sudo=True)
-    sudo('chmod +x /usr/local/bin/warn_to_slack.sh')
+def install_disk_usage_alert(
+        slack_url="https://hooks.slack.com/services/DUMMY",
+        slack_chanel="#alert", watch_disk="/"):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data = open(os.path.join(
+        base_dir,
+        "ansible/roles/common/templates/alert_to_slack.sh"), 'rb'
+    ).read().decode('UTF-8').replace(
+        '{{ SLACK_URL }}', slack_url)
+
+    sio = io.BytesIO()
+    sio.write(data.encode('UTF-8'))
+    sio.seek(0)
+    put(os.path.join(base_dir,
+                     "ansible/roles/common/files/check_disk_usage.sh"),
+        "/usr/local/bin/check_disk_usage.sh", use_sudo=True)
+    put(sio, "/usr/local/bin/alert_to_slack.sh", use_sudo=True)
+    sudo('chmod +x /usr/local/bin/check_disk_usage.sh')
+    sudo('chmod +x /usr/local/bin/alert_to_slack.sh')
     # edit crontab
-    append('/etc/crontab', '*/30 * * * * root /usr/local/bin/warn_to_slack.sh "{}" "{}" "{}"'.format(
-        slack_url, slack_chanel, watch_disk), use_sudo=True)
+    append('/etc/crontab',
+           '*/30 * * * * root /usr/local/bin/check_disk_usage.sh',
+           use_sudo=True)
     sudo("service cron restart")
